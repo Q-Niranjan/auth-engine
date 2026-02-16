@@ -7,8 +7,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth_engine.api.v1.router import api_router
+from auth_engine.core.bootstrap import seed_super_admin
 from auth_engine.core.config import settings
 from auth_engine.core.mongodb import mongodb
+from auth_engine.core.postgres import AsyncSessionLocal
+from auth_engine.core.rbac_seed import seed_roles
 from auth_engine.core.redis import redis_client
 
 logging.basicConfig(
@@ -30,6 +33,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await mongodb.connect_to_storage()
     await redis_client.connect()
 
+    # Bootstrap system data
+    async with AsyncSessionLocal() as session:
+        # 1. Seed default roles
+        await seed_roles(session)
+        # 2. Seed super admin
+        await seed_super_admin(session)
+
     yield
 
     logger.info("Shutting down AuthEngine...")
@@ -40,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
+    description=settings.APP_DESCRIPTION,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     lifespan=lifespan,
 )
@@ -66,6 +77,7 @@ async def root() -> dict[str, str]:
     return {
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
+        "description": settings.APP_DESCRIPTION,
         "docs": "/docs",
     }
 

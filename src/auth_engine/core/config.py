@@ -12,8 +12,16 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "AuthEngine"
     APP_VERSION: str = "1.0.0"
+    APP_DESCRIPTION: str = (
+        "A powerful, multi-tenant Auth Engine with RBAC and Permission-based access control."
+    )
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
+
+    # Super Admin Bootstrap
+    # Defaulting to values that should be changed in .env
+    SUPERADMIN_EMAIL: str = "admin@authengine.com"
+    SUPERADMIN_PASSWORD: str = "ChangeThisStrongPassword123!"
 
     # Security
     SECRET_KEY: str = Field(..., min_length=32)

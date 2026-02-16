@@ -14,11 +14,11 @@ The core of AuthEngine is its extensible **Strategy Pattern** implementation, al
 - **Biometric WebAuthn**: (Planned) FIDO2 support for hardware keys and biometric passkeys.
 
 ### 🛡️ Advanced Security Architecture
-- **JWT Architecture**: Stateless authentication using short-lived Access Tokens and secure, rotation-ready Refresh Tokens.
-- **Role-Based Access Control (RBAC)**: Fine-grained permission system for authorization.
-- **Session Management**: Redis-backed session storage for high-speed validity checks and instant revocation capability.
+- **Permission-Based Access Control (PBAC)**: Granular permission system (e.g., `tenant.update`, `platform.users.manage`) for flexible authorization.
+- **Multi-Tenancy**: Built-in organizational isolation with hierarchical role management and tenant-aware guards.
+- **Session & Device Management**: Redis-backed session tracking, allowing users to view active devices and revoke sessions instantly.
 - **Rate Limiting**: Distributed rate limiting using Redis to prevent DDoS and brute-force attacks.
-- **Audit Logging**: Comprehensive immutable logs for all security events.
+- **Auto-Bootstrap**: Automatic seeding of Roles, Permissions, and a `SUPER_ADMIN` user on first application startup.
 
 ### 🏗️ Technical Excellence (FAANG Ready)
 - **Async First**: Fully asynchronous I/O using `asyncio` for high throughput.
@@ -30,35 +30,31 @@ The core of AuthEngine is its extensible **Strategy Pattern** implementation, al
 
 ```
 auth-engine/
-├── alembic/                 # Database migrations (Alembic)
-│   └── versions/            # Migration scripts
+├── alembic/                 # Database migrations
 ├── src/
 │   └── auth_engine/
 │       ├── api/             # API Layer
-│       │   ├── v1/          # Versioned endpoints
-│       │   ├── auth_deps.py # Authentication dependencies
-│       │   └── deps.py      # Core dependencies (DB, Redis)
+│       │   ├── v1/          
+│       │   │   ├── endpoints/ # Platform, Tenant, Auth, User routers
+│       │   │   └── router.py  # v1 Router assembly
+│       │   ├── auth_deps.py # Auth & Session-validation dependencies
+│       │   ├── deps.py      # Core store dependencies
+│       │   └── rbac.py      # PBAC Guards & Tenant Isolation
 │       ├── core/            # Core Infrastructure
-│       │   ├── config.py    # Pydantic Settings
-│       │   ├── security.py  # Security utils (Argon2, JWT)
-│       │   └── database.py  # SQLAlchemy Async Engine
-│       ├── models/          # Data Models
-│       │   ├── user.py      # User & Profile models
-│       │   └── token.py     # Token definitions
-│       ├── repositories/    # Data Access Layer (Repository Pattern)
-│       │   ├── user_repo.py # User persistence logic
-│       │   └── redis_repo.py# Cache/Session logic
-│       ├── services/        # Business Logic Layer
-│       │   └── auth_service.py # Auth flows orchestration
+│       │   ├── bootstrap.py # System Auto-seeder
+│       │   ├── rbac_seed.py # PBAC/RBAC definitions
+│       │   └── config.py    # Application settings
+│       ├── models/          # Data Models (ORM)
+│       ├── repositories/    # Data Access Layer
+│       ├── schemas/         # Pydantic Models (Request/Response)
+│       ├── services/        # Business Logic (Separated by Concern)
+│       │   ├── auth_service.py    # Auth Lifecycle
+│       │   ├── session_service.py # Redis Session logic
+│       │   ├── tenant_service.py  # Organizational Logic
+│       │   └── role_service.py    # PBAC & Hierarchy logic
 │       ├── strategies/      # Auth Strategy Implementations
-│       │   ├── base.py      # Abstract Strategy Interface
-│       │   └── email_password.py
-│       ├── cli.py           # CLI Management Tool
 │       └── main.py          # Application Entrypoint
-├── tests/                   # Test Suite
-├── alembic.ini              # Migration Configuration
-├── pyproject.toml           # Dependency Management (uv)
-├── uv.lock                  # Locked Dependencies
+├── tests/                   # Complete Test Suite
 └── README.md                # Documentation
 ```
 
@@ -105,14 +101,16 @@ auth-engine/
    ```
    Access Swagger UI at `http://localhost:8000/docs`
 
-## 🔌 API Endpoints (v1)
+## 🔌 API Endpoints (v1 Highlights)
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/v1/auth/register` | Register new user |
-| `POST` | `/api/v1/auth/login` | Login (returns Access + Refresh tokens) |
-| `GET`  | `/api/v1/users/me` | Get current user profile (Protected) |
-| `GET`  | `/api/v1/health` | System health check (DB/Cache status) |
+| Method   | Endpoint                          | Description                              |
+|----------|-----------------------------------|------------------------------------------|
+| `POST`   | `/api/v1/auth/login`             | Login with Session Creation              |
+| `POST`   | `/api/v1/auth/logout`            | Global Session Revocation                |
+| `GET`    | `/api/v1/users/me/sessions`      | List active devices/sessions             |
+| `GET`    | `/api/v1/tenants/{id}/users`     | Manage Tenant Context (Isolated)         |
+| `GET`    | `/api/v1/platform/tenants`       | Platform-wide Administration             |
+| `GET`    | `/api/v1/health`                 | System health (DB/Redis status)          |
 
 ## 🧪 Testing
 

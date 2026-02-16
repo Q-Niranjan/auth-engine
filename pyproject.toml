@@ -18,6 +18,8 @@ dependencies = [
     "redis",
     "asyncpg",
     "pydantic[email]",
+    "psycopg2",
+    "psycopg2-binary",  
 ]
 
 [tool.ruff]

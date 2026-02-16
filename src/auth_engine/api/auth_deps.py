@@ -1,11 +1,13 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from auth_engine.api.deps import get_db
+from auth_engine.core.redis import get_redis
 from auth_engine.core.security import token_manager
-from auth_engine.models.user import UserORM
-from auth_engine.repositories.user_repo import UserRepository
+from auth_engine.models import RoleORM, RolePermissionORM, UserORM, UserRoleORM
 
 security = HTTPBearer()
 
@@ -37,9 +39,31 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
 
-    # Fetch user from database
-    user_repo = UserRepository(db)
-    user = await user_repo.get(user_id)
+    # Session validation (Pro feature)
+    session_id = payload.get("sid")
+    if session_id:
+        redis = await get_redis()
+        session_exists = await redis.exists(f"session:{user_id}:{session_id}")
+        if not session_exists:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session has been revoked or expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # Fetch user from database with roles and permissions eager loaded
+    query = (
+        select(UserORM)
+        .where(UserORM.id == user_id)
+        .options(
+            joinedload(UserORM.roles)
+            .joinedload(UserRoleORM.role)
+            .joinedload(RoleORM.permissions)
+            .joinedload(RolePermissionORM.permission)
+        )
+    )
+    result = await db.execute(query)
+    user = result.unique().scalar_one_or_none()
 
     if user is None:
         raise HTTPException(
@@ -55,7 +79,7 @@ async def get_current_active_user(current_user: UserORM = Depends(get_current_us
     """
     Dependency to get the current active user.
     """
-    from auth_engine.models.user import UserStatus
+    from auth_engine.schemas.user import UserStatus
 
     if current_user.status != UserStatus.ACTIVE:
         raise HTTPException(

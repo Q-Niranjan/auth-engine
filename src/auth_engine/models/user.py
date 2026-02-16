@@ -1,31 +1,19 @@
-# models/user.py
-
+import uuid
 from datetime import datetime
-from enum import Enum
 
-from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
 from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from auth_engine.core.postgres import Base
-
-
-class AuthStrategy(str, Enum):
-    EMAIL_PASSWORD = "email_password"  # pragma: allowlist secret
-    # TODO: Add strategy in future days
-
-
-class UserStatus(str, Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    SUSPENDED = "suspended"
-    PENDING_VERIFICATION = "pending_verification"
+from auth_engine.schemas.user import UserStatus
 
 
 class UserORM(Base):
     __tablename__ = "users"
 
-    id = Column(String(36), primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, index=True, nullable=False)
     username = Column(String(100), unique=True, index=True, nullable=True)
     phone_number = Column(String(20), unique=True, index=True, nullable=True)
@@ -57,66 +45,4 @@ class UserORM(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime, nullable=True)
 
-
-class UserBase(BaseModel):
-    email: EmailStr
-    username: str | None = None
-    phone_number: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
-
-
-class UserCreate(UserBase):
-    password: str = Field(..., min_length=8, max_length=100)
-    auth_strategy: AuthStrategy = AuthStrategy.EMAIL_PASSWORD
-
-
-class UserUpdate(BaseModel):
-    username: str | None = None
-    phone_number: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
-    avatar_url: str | None = None
-
-
-class PasswordUpdate(BaseModel):
-    current_password: str
-    new_password: str = Field(..., min_length=8, max_length=100)
-
-
-class UserResponse(UserBase):
-    id: str
-    status: UserStatus
-    is_email_verified: bool
-    is_phone_verified: bool
-    auth_strategies: list[str]
-    avatar_url: str | None = None
-    created_at: datetime
-    last_login_at: datetime | None = None
-
-    class Config:
-        from_attributes = True
-
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class UserLoginResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    user: UserResponse
-
-
-class TokenRefresh(BaseModel):
-    refresh_token: str
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int
+    roles = relationship("UserRoleORM", back_populates="user")
