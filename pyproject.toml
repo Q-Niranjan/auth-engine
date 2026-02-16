@@ -1,0 +1,49 @@
+[project]
+name = "auth-engine"
+version = "1.0.0"
+description = "AuthEngine backend service"
+authors = [{ name="Your Name" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "typer",
+    "sqlalchemy",
+    "alembic",
+    "argon2-cffi",
+    "passlib",
+    "python-jose[cryptography]",
+    "pydantic-settings",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+exclude = ["^alembic/"]
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+
+
+[project.scripts]
+auth-engine = "auth_engine.cli:app"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = [
+    "types-redis>=4.6.0.20241004",
+]
