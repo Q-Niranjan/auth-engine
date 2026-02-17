@@ -1,9 +1,9 @@
 import redis.asyncio as redis
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_engine.api.auth_deps import get_current_active_user
-from auth_engine.api.deps import get_db
+from auth_engine.api.dependencies.auth_deps import get_current_active_user
+from auth_engine.api.dependencies.deps import get_audit_service, get_db
 from auth_engine.core.config import settings
 from auth_engine.core.redis import get_redis
 from auth_engine.models import UserORM
@@ -16,6 +16,7 @@ from auth_engine.schemas.user import (
     UserResponse,
 )
 from auth_engine.services.auth_service import AuthService
+from auth_engine.services.audit_service import AuditService
 from auth_engine.services.session_service import SessionService
 
 router = APIRouter()
@@ -36,8 +37,10 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)) -> U
 async def login(
     request: Request,
     login_data: UserLogin,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     redis_conn: redis.Redis = Depends(get_redis),
+    audit_service: AuditService = Depends(get_audit_service),
 ) -> UserLoginResponse:
     user_repo = UserRepository(db)
     auth_service = AuthService(user_repo)
@@ -55,6 +58,20 @@ async def login(
         )
 
         tokens = auth_service.create_tokens(user, session_id=session_id)
+
+        # Audit Log: Successful Login
+        # Audit Log: Successful Login
+        background_tasks.add_task(
+            audit_service.log,
+            action="LOGIN_SUCCESS",
+            resource="Auth",
+            resource_id=str(user.id),
+            actor_id=user.id,
+            metadata={"email": user.email},
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+
         return UserLoginResponse(
             access_token=tokens["access_token"],
             refresh_token=tokens["refresh_token"],
@@ -63,13 +80,27 @@ async def login(
             user=UserResponse.model_validate(tokens["user"]),
         )
     except ValueError as e:
+        # Audit Log: Failed Login
+        # Audit Log: Failed Login
+        background_tasks.add_task(
+            audit_service.log,
+            action="LOGIN_FAILED",
+            resource="Auth",
+            metadata={"email": login_data.email, "error": str(e)},
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            status="failure",
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
+    request: Request,
+    background_tasks: BackgroundTasks,
     current_user: UserORM = Depends(get_current_active_user),
     redis_conn: redis.Redis = Depends(get_redis),
+    audit_service: AuditService = Depends(get_audit_service),
 ) -> None:
     """
     Log out the current user by deleting all their sessions.
@@ -77,6 +108,17 @@ async def logout(
     """
     session_service = SessionService(redis_conn)
     await session_service.delete_all_sessions(current_user.id)
+    
+    # Audit Log: Logout
+    background_tasks.add_task(
+        audit_service.log,
+        action="LOGOUT",
+        resource="Auth",
+        resource_id=str(current_user.id),
+        actor_id=current_user.id,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
     return None
 
 

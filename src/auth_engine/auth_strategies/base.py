@@ -1,4 +1,4 @@
-# strategies/base.py
+# auth_strategies/base.py
 
 from abc import ABC, abstractmethod
 from datetime import datetime

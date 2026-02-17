@@ -6,12 +6,14 @@ from sqlalchemy.orm import joinedload
 
 from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
 from auth_engine.repositories.user_repo import UserRepository
+from auth_engine.services.audit_service import AuditService
 from auth_engine.services.permission_service import PermissionService
 
 
 class TenantService:
-    def __init__(self, user_repo: UserRepository):
+    def __init__(self, user_repo: UserRepository, audit_service: AuditService | None = None):
         self.user_repo = user_repo
+        self.audit_service = audit_service
 
     async def create_tenant(
         self, name: str, user_id: uuid.UUID, description: str | None = None
@@ -31,6 +33,16 @@ class TenantService:
 
         await self.user_repo.session.commit()
         await self.user_repo.session.refresh(tenant)
+
+        if self.audit_service:
+            await self.audit_service.log(
+                action="TENANT_CREATED",
+                resource="Tenant",
+                resource_id=str(tenant.id),
+                actor_id=user_id,
+                metadata={"name": name, "owner_id": str(user_id)},
+            )
+
         return tenant
 
     async def list_my_tenants(self, user_id: uuid.UUID) -> list[TenantORM]:
@@ -73,6 +85,16 @@ class TenantService:
 
         await self.user_repo.session.commit()
         await self.user_repo.session.refresh(tenant)
+
+        # Audit Log
+        if self.audit_service:
+            await self.audit_service.log(
+                action="TENANT_UPDATED",
+                resource="Tenant",
+                resource_id=str(tenant_id),
+                actor_id=actor.id,
+                metadata={"updates": kwargs},
+            )
         return tenant
 
     async def delete_tenant(self, tenant_id: uuid.UUID, actor: UserORM) -> bool:
@@ -87,6 +109,14 @@ class TenantService:
 
         await self.user_repo.session.delete(tenant)
         await self.user_repo.session.commit()
+
+        if self.audit_service:
+            await self.audit_service.log(
+                action="TENANT_DELETED",
+                resource="Tenant",
+                resource_id=str(tenant_id),
+                actor_id=actor.id,
+            )
         return True
 
     async def list_tenant_users(self, tenant_id: uuid.UUID, actor: UserORM) -> list[UserORM]:
@@ -129,4 +159,13 @@ class TenantService:
             await self.user_repo.session.delete(mapping)
 
         await self.user_repo.session.commit()
+
+        if self.audit_service:
+            await self.audit_service.log(
+                action="TENANT_USER_REMOVED",
+                resource="Tenant",
+                resource_id=str(tenant_id),
+                actor_id=actor.id,
+                metadata={"removed_user_id": str(user_id)},
+            )
         return True

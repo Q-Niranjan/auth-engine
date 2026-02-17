@@ -1,24 +1,18 @@
 from fastapi import APIRouter
 
-from auth_engine.api.v1.endpoints import platform, tenants
-from auth_engine.core.health import check_mongodb, check_postgres, check_redis
+from auth_engine.api.v1 import audit, platform, system, tenants
 
 api_router = APIRouter()
 
-# Include Platform Router (contains auth and users)
-api_router.include_router(platform.router, prefix="/platform")
+api_router.include_router(platform.auth.router, prefix="/platform/auth", tags=["platform"])
+api_router.include_router(platform.user.router, prefix="/platform/users", tags=["platform"])
+api_router.include_router(platform.tenant.router, prefix="/platform/tenants", tags=["platform"])
 
-# Include Tenants Router (Admin & Scoped Auth)
-api_router.include_router(tenants.router, prefix="/tenants")
+api_router.include_router(tenants.management.router, prefix="/tenants/mgmt", tags=["tenants"])
+api_router.include_router(tenants.users.router, prefix="/tenants/users", tags=["tenants"])
+api_router.include_router(tenants.roles.router, prefix="/tenants/roles", tags=["tenants"])
 
+api_router.include_router(audit.audit_logs.router, prefix="/audit-logs", tags=["Audit Logs"])
 
-# Add your health check or other v1 endpoints here
-@api_router.get("/health")
-async def health_check() -> dict[str, str]:
-    try:
-        await check_postgres()
-        await check_mongodb()
-        await check_redis()
-        return {"status": "healthy"}
-    except Exception as e:
-        return {"status": "unhealthy", "error": str(e)}
+# (root and health)
+api_router.include_router(system.system.router)

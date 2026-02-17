@@ -6,9 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from auth_engine.api.auth_deps import get_current_active_user
-from auth_engine.api.deps import get_db
-from auth_engine.api.rbac import require_permission
+from auth_engine.api.dependencies.auth_deps import get_current_active_user
+from auth_engine.api.dependencies.deps import get_db
+from auth_engine.api.dependencies.rbac import require_permission
 from auth_engine.core.redis import get_redis
 from auth_engine.models import UserORM, UserRoleORM
 from auth_engine.repositories.user_repo import UserRepository

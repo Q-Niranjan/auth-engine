@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth_engine.api.v1.router import api_router
 from auth_engine.core.bootstrap import seed_super_admin
 from auth_engine.core.config import settings
-from auth_engine.core.mongodb import mongodb
+from auth_engine.core.mongodb import close_mongo, init_mongo, mongo_db
 from auth_engine.core.postgres import AsyncSessionLocal
 from auth_engine.core.rbac_seed import seed_roles
 from auth_engine.core.redis import redis_client
@@ -30,20 +30,26 @@ logging.getLogger("motor").setLevel(logging.WARNING)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting up AuthEngine...")
 
-    await mongodb.connect_to_storage()
+    await init_mongo()
     await redis_client.connect()
 
     # Bootstrap system data
     async with AsyncSessionLocal() as session:
-        # 1. Seed default roles
         await seed_roles(session)
-        # 2. Seed super admin
         await seed_super_admin(session)
+
+    # Initialize Audit Log Indexes
+    if mongo_db is not None:
+        collection = mongo_db["audit_logs"]
+        await collection.create_index("actor_id")
+        await collection.create_index("tenant_id")
+        await collection.create_index("created_at")
+        await collection.create_index([("tenant_id", 1), ("created_at", -1)])
 
     yield
 
     logger.info("Shutting down AuthEngine...")
-    await mongodb.close_storage_connection()
+    await close_mongo()
     await redis_client.disconnect()
 
 
@@ -70,17 +76,6 @@ app.add_middleware(
 
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
-
-
-@app.get("/", response_model=dict[str, str])
-async def root() -> dict[str, str]:
-    return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "description": settings.APP_DESCRIPTION,
-        "docs": "/docs",
-    }
-
 
 if __name__ == "__main__":
     uvicorn.run(

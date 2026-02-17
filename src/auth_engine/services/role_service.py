@@ -7,12 +7,14 @@ from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
 from auth_engine.models.role import RoleScope
 from auth_engine.models.tenant import TenantType
 from auth_engine.repositories.user_repo import UserRepository
+from auth_engine.services.audit_service import AuditService
 from auth_engine.services.permission_service import PermissionService
 
 
 class RoleService:
-    def __init__(self, user_repo: UserRepository):
+    def __init__(self, user_repo: UserRepository, audit_service: AuditService | None = None):
         self.user_repo = user_repo
+        self.audit_service = audit_service
 
     async def assign_role(
         self, actor: UserORM, target_user_id: uuid.UUID, role_name: str, tenant_id: uuid.UUID
@@ -90,6 +92,19 @@ class RoleService:
         self.user_repo.session.add(new_assignment)
         await self.user_repo.session.commit()
 
+        if self.audit_service:
+            await self.audit_service.log(
+                actor_id=actor.id,
+                target_user_id=target_user_id,
+                tenant_id=str(tenant_id),
+                action="ROLE_ASSIGNED",
+                resource="UserRole",
+                metadata={
+                    "role_name": role_name,
+                    "role_level": target_role.level,
+                },
+            )
+
     async def remove_role(
         self, actor: UserORM, target_user_id: uuid.UUID, role_name: str, tenant_id: uuid.UUID
     ) -> bool:
@@ -148,6 +163,16 @@ class RoleService:
         if assignment:
             await self.user_repo.session.delete(assignment)
             await self.user_repo.session.commit()
+
+            if self.audit_service:
+                await self.audit_service.log(
+                    actor_id=actor.id,
+                    target_user_id=target_user_id,
+                    tenant_id=str(tenant_id),
+                    action="ROLE_REMOVED",
+                    resource="UserRole",
+                    metadata={"role_name": role_name},
+                )
             return True
         return False
 

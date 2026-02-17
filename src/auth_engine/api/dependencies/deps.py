@@ -4,9 +4,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_engine.core.mongodb import mongodb
+from auth_engine.core.mongodb import mongo_db
 from auth_engine.core.postgres import AsyncSessionLocal
 from auth_engine.core.redis import redis_client
+from auth_engine.services.audit_service import AuditService
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -15,7 +16,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_mongodb() -> AsyncIOMotorDatabase:
-    return mongodb.db
+    if mongo_db is None:
+        raise RuntimeError("MongoDB is not initialized")
+    return mongo_db
+
+
+async def get_audit_service() -> AuditService:
+    if mongo_db is None:
+        raise RuntimeError("MongoDB is not initialized")
+    return AuditService(mongo_db)
 
 
 async def get_redis() -> Redis:

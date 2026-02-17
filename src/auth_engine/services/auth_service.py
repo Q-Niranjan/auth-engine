@@ -6,12 +6,12 @@ from typing import Any
 from sqlalchemy import select
 
 from auth_engine.core.config import settings
-from auth_engine.core.email import EmailServiceResolver
 from auth_engine.core.security import security, token_manager
 from auth_engine.models import RoleORM, UserORM, UserRoleORM
 from auth_engine.repositories.email_config_repo import TenantEmailConfigRepository
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.user import UserCreate, UserLogin, UserStatus
+from auth_engine.services.email import EmailServiceResolver
 
 logger = logging.getLogger(__name__)
 

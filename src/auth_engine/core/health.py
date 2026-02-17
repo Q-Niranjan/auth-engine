@@ -1,6 +1,6 @@
 from sqlalchemy import text
 
-from auth_engine.core.mongodb import mongodb
+from auth_engine.core.mongodb import mongo_client
 from auth_engine.core.postgres import AsyncSessionLocal
 from auth_engine.core.redis import redis_client
 
@@ -11,7 +11,8 @@ async def check_postgres() -> None:
 
 
 async def check_mongodb() -> None:
-    await mongodb.client.admin.command("ping")
+    if mongo_client:
+        await mongo_client.admin.command("ping")
 
 
 async def check_redis() -> None:

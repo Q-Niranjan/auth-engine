@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from auth_engine.api.deps import get_db
+from auth_engine.api.dependencies.deps import get_db
 from auth_engine.core.redis import get_redis
 from auth_engine.core.security import token_manager
 from auth_engine.models import RoleORM, RolePermissionORM, UserORM, UserRoleORM
@@ -87,4 +87,23 @@ async def get_current_active_user(current_user: UserORM = Depends(get_current_us
             detail=f"User account is {current_user.status.value}",
         )
 
+    return current_user
+
+
+async def get_current_active_superadmin(
+    current_user: UserORM = Depends(get_current_active_user),
+) -> UserORM:
+    """
+    Dependency to get the current active superuser.
+    """
+    is_super_admin = False
+    for user_role in current_user.roles:
+         if user_role.role.name == "SUPER_ADMIN":
+             is_super_admin = True
+             break
+    
+    if not is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
+        )
     return current_user

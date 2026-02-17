@@ -1,4 +1,4 @@
-# strategies/email_password.py
+# auth_strategies/email_password.py
 import uuid
 from typing import Any
 
@@ -10,7 +10,7 @@ from auth_engine.core.exceptions import (
     WeakPasswordError,
 )
 from auth_engine.core.security import security, token_manager
-from auth_engine.strategies.base import PasswordBasedStrategy
+from auth_engine.auth_strategies.base import PasswordBasedStrategy
 
 
 class EmailPasswordStrategy(PasswordBasedStrategy):

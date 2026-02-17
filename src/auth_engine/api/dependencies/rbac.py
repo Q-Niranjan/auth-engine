@@ -5,8 +5,8 @@ from typing import Any
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_engine.api.auth_deps import get_current_user
-from auth_engine.api.deps import get_db
+from auth_engine.api.dependencies.auth_deps import get_current_user
+from auth_engine.api.dependencies.deps import get_db
 from auth_engine.models import UserORM
 from auth_engine.services.permission_service import PermissionService
 
