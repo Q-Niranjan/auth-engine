@@ -20,7 +20,7 @@ The core of AuthEngine is its extensible **Strategy Pattern** implementation, al
 - **Rate Limiting**: Distributed rate limiting using Redis to prevent DDoS and brute-force attacks.
 - **Auto-Bootstrap**: Automatic seeding of Roles, Permissions, and a `SUPER_ADMIN` user on first application startup.
 
-### 🏗️ Technical Excellence (FAANG Ready)
+### 🏗️ Technical Excellence
 - **Async First**: Fully asynchronous I/O using `asyncio` for high throughput.
 - **Database sharding ready**: Modular repository pattern supporting horizontal scaling.
 - **Type Safety**: strict type checking with **Pydantic v2** and **Mypy**.
