@@ -1,3 +1,4 @@
+from .email_config import TenantEmailConfigORM
 from .permission import PermissionORM
 from .role import RoleORM
 from .role_permission import RolePermissionORM
@@ -12,4 +13,5 @@ __all__ = [
     "TenantORM",
     "RolePermissionORM",
     "UserRoleORM",
+    "TenantEmailConfigORM",
 ]

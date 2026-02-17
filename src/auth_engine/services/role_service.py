@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from auth_engine.models import RoleORM, UserORM, UserRoleORM, TenantORM
+from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
 from auth_engine.models.role import RoleScope
 from auth_engine.models.tenant import TenantType
 from auth_engine.repositories.user_repo import UserRepository
@@ -31,7 +31,7 @@ class RoleService:
         # PROTECT SUPER_ADMIN: System role should remain bootstrap-only
         if target_role.name == "SUPER_ADMIN":
             raise ValueError("SUPER_ADMIN role cannot be assigned manually")
-        
+
         # Fetch tenant
         tenant = await self.user_repo.session.get(TenantORM, tenant_id)
         if not tenant:
@@ -45,8 +45,14 @@ class RoleService:
             raise ValueError("Tenant roles cannot be assigned in platform tenant")
 
         # 2. Authorization: Check if actor has the required permission for the ACTION
-        perm_required = "tenant.roles.assign" if target_role.scope == RoleScope.TENANT else "platform.roles.assign"
-        if not await PermissionService.has_permission(self.user_repo.session, actor, perm_required, tenant_id):
+        perm_required = (
+            "tenant.roles.assign"
+            if target_role.scope == RoleScope.TENANT
+            else "platform.roles.assign"
+        )
+        if not await PermissionService.has_permission(
+            self.user_repo.session, actor, perm_required, tenant_id
+        ):
             raise ValueError(f"Insufficient permissions: Missing '{perm_required}'")
 
         # 3. Hierarchy: Check if actor's level allows assigning THIS specific role
@@ -103,8 +109,14 @@ class RoleService:
             raise ValueError("SUPER_ADMIN role cannot be removed manually")
 
         # 2. Authorization
-        perm_required = "tenant.roles.assign" if target_role.scope == RoleScope.TENANT else "platform.roles.assign"
-        if not await PermissionService.has_permission(self.user_repo.session, actor, perm_required, tenant_id):
+        perm_required = (
+            "tenant.roles.assign"
+            if target_role.scope == RoleScope.TENANT
+            else "platform.roles.assign"
+        )
+        if not await PermissionService.has_permission(
+            self.user_repo.session, actor, perm_required, tenant_id
+        ):
             raise ValueError(f"Insufficient permissions: Missing '{perm_required}'")
 
         # 3. Hierarchy

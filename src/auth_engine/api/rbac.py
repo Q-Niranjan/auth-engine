@@ -3,12 +3,12 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.auth_deps import get_current_user
 from auth_engine.api.deps import get_db
 from auth_engine.models import UserORM
 from auth_engine.services.permission_service import PermissionService
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def require_permission(
@@ -19,10 +19,11 @@ def require_permission(
     If 'tenant_id' is in the path, it checks within that tenant.
     Otherwise, it checks the Platform context.
     """
+
     async def checker(
         current_user: UserORM = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
-        tenant_id: str | None = None # This will pick up "tenant_id" from path if it exists
+        tenant_id: str | None = None,  # This will pick up "tenant_id" from path if it exists
     ) -> UserORM:
         t_id = None
         if tenant_id:

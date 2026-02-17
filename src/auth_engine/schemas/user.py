@@ -46,6 +46,7 @@ class PasswordUpdate(BaseModel):
 
 class PasswordReset(BaseModel):
     email: EmailStr
+    tenant_id: uuid.UUID | None = None
 
 
 class UserResponse(UserBase):

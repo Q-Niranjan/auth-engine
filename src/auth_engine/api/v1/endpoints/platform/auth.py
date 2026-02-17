@@ -86,5 +86,5 @@ async def reset_password(
 ) -> dict[str, str]:
     user_repo = UserRepository(db)
     auth_service = AuthService(user_repo)
-    await auth_service.initiate_password_reset(reset_data.email)
+    await auth_service.initiate_password_reset(reset_data.email, reset_data.tenant_id)
     return {"message": "If the email exists, a reset link will be sent."}

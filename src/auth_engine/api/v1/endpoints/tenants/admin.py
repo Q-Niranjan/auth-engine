@@ -180,7 +180,9 @@ async def remove_user_from_tenant(
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo)
     try:
-        success = await tenant_service.remove_user_from_tenant(tenant_id, user_id, actor=current_user)
+        success = await tenant_service.remove_user_from_tenant(
+            tenant_id, user_id, actor=current_user
+        )
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
     if not success:
@@ -216,7 +218,7 @@ async def assign_user_role(
     """
     user_repo = UserRepository(db)
     role_service = RoleService(user_repo)
-    
+
     try:
         await role_service.assign_role(
             actor=current_user,

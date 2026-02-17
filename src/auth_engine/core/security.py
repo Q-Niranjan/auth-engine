@@ -52,6 +52,35 @@ class SecurityUtils:
     def generate_otp(length: int = 6) -> str:
         return "".join(secrets.choice(string.digits) for _ in range(length))
 
+    @staticmethod
+    def _get_fernet_key() -> bytes:
+        import base64
+        import hashlib
+
+        # Derive a 32-byte URL-safe base64-encoded key from the secret key
+        digest = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
+        return base64.urlsafe_b64encode(digest)
+
+    @staticmethod
+    def encrypt_data(data: str) -> str:
+        from cryptography.fernet import Fernet
+
+        if not data:
+            return ""
+
+        f = Fernet(SecurityUtils._get_fernet_key())
+        return f.encrypt(data.encode()).decode()
+
+    @staticmethod
+    def decrypt_data(encrypted_data: str) -> str:
+        from cryptography.fernet import Fernet
+
+        if not encrypted_data:
+            return ""
+
+        f = Fernet(SecurityUtils._get_fernet_key())
+        return f.decrypt(encrypted_data.encode()).decode()
+
 
 class TokenManager:
     @staticmethod

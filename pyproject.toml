@@ -19,7 +19,8 @@ dependencies = [
     "asyncpg",
     "pydantic[email]",
     "psycopg2",
-    "psycopg2-binary",  
+    "psycopg2-binary",
+    "sendgrid",  
 ]
 
 [tool.ruff]

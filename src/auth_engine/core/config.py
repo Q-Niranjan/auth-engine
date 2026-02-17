@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     MAX_CONCURRENT_SESSIONS: int = 5
     SESSION_TIMEOUT_MINUTES: int = 60
 
+    # Email Settings
+    EMAIL_PROVIDER: str = "sendgrid"
+    EMAIL_PROVIDER_API_KEY: str = Field(
+        default="", description="API Key for the configured email provider"
+    )
+    EMAIL_SENDER: str = Field(default="noreply@authengine.com", description="Default email sender")
+
     # CORS
     CORS_ORIGINS: str | list[str] = ["http://localhost:3000", "http://localhost:8000"]
     CORS_ALLOW_CREDENTIALS: bool = True

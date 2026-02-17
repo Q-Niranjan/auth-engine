@@ -1,11 +1,13 @@
 import uuid
-
-from pydantic import BaseModel, ConfigDict
 from enum import Enum
 
+from pydantic import BaseModel, ConfigDict
+
+
 class TenantType(str, Enum):
-    PLATFORM = "PLATFORM"   
+    PLATFORM = "PLATFORM"
     CUSTOMER = "CUSTOMER"
+
 
 class TenantBase(BaseModel):
     name: str | None = None
@@ -14,7 +16,7 @@ class TenantBase(BaseModel):
 
 
 class TenantCreate(TenantBase):
-    name: str   
+    name: str
     type: TenantType = TenantType.CUSTOMER
 
 
