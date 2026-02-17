@@ -45,4 +45,4 @@ class UserORM(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime, nullable=True)
 
-    roles = relationship("UserRoleORM", back_populates="user")
+    roles = relationship("UserRoleORM", back_populates="user", lazy="selectin")

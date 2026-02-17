@@ -4,24 +4,25 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.models.permission import PermissionORM
-from auth_engine.models.role import RoleORM
+from auth_engine.models.role import RoleORM, RoleScope
 from auth_engine.models.role_permission import RolePermissionORM
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_ROLES = [
-    ("SUPER_ADMIN", "Full platform control", "platform"),
-    ("PLATFORM_ADMIN", "Manage organizations", "platform"),
-    ("TENANT_OWNER", "Owner of organization", "tenant"),
-    ("TENANT_ADMIN", "Admin inside tenant", "tenant"),
-    ("TENANT_MANAGER", "Manager inside tenant", "tenant"),
-    ("TENANT_USER", "Standard tenant user", "tenant"),
+    ("SUPER_ADMIN", "Full platform control", RoleScope.PLATFORM, 100),
+    ("PLATFORM_ADMIN", "Manage organizations", RoleScope.PLATFORM, 80),
+    ("TENANT_OWNER", "Owner of organization", RoleScope.TENANT, 60),
+    ("TENANT_ADMIN", "Admin inside tenant", RoleScope.TENANT, 50),
+    ("TENANT_MANAGER", "Manager inside tenant", RoleScope.TENANT, 30),
+    ("TENANT_USER", "Standard tenant user", RoleScope.TENANT, 10),
 ]
 
 # (Permission Name, Description)
 DEFAULT_PERMISSIONS = [
     ("platform.users.view", "View all users globally"),
     ("platform.users.manage", "Manage all users globally"),
+    ("platform.roles.assign", "Assign platform-level roles"),
     ("platform.tenants.view", "View all tenants globally"),
     ("platform.tenants.manage", "Manage all tenants globally"),
     ("tenant.view", "View tenant details"),
@@ -39,6 +40,7 @@ ROLE_PERMISSIONS = {
         "platform.users.view",
         "platform.tenants.view",
         "platform.tenants.manage",
+        "platform.roles.assign",
         "tenant.view",
         "tenant.users.view",
     ],
@@ -74,18 +76,19 @@ ROLE_PERMISSIONS = {
 async def seed_roles(db: AsyncSession) -> None:
     # 1. Seed Roles
     role_objs: dict[str, RoleORM] = {}
-    for name, description, scope in DEFAULT_ROLES:
+    for name, description, scope, level in DEFAULT_ROLES:
         role_query = select(RoleORM).where(RoleORM.name == name)
         role_result = await db.execute(role_query)
         role = role_result.scalar_one_or_none()
 
         if not role:
             logger.info(f"Seeding role: {name}")
-            role = RoleORM(name=name, description=description, scope=scope)
+            role = RoleORM(name=name, description=description, scope=scope, level=level)
             db.add(role)
         else:
             role.description = description
             role.scope = scope
+            role.level = level
         role_objs[name] = role
 
     # 2. Seed Permissions

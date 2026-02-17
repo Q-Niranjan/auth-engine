@@ -1,21 +1,15 @@
 from fastapi import APIRouter
 
-from auth_engine.api.v1.endpoints import auth, platform, tenant, user
+from auth_engine.api.v1.endpoints import platform, tenants
 from auth_engine.core.health import check_mongodb, check_postgres, check_redis
 
 api_router = APIRouter()
 
-# Include Auth Router
-api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+# Include Platform Router (contains auth and users)
+api_router.include_router(platform.router, prefix="/platform")
 
-# Include User Router
-api_router.include_router(user.router, prefix="/users", tags=["users"])
-
-# Include Tenant Router
-api_router.include_router(tenant.router, prefix="/tenants", tags=["tenants"])
-
-# Include Platform Router
-api_router.include_router(platform.router, prefix="/platform", tags=["platform"])
+# Include Tenants Router (Admin & Scoped Auth)
+api_router.include_router(tenants.router, prefix="/tenants")
 
 
 # Add your health check or other v1 endpoints here

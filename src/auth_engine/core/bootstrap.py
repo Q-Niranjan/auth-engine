@@ -3,7 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.core.config import settings
 from auth_engine.core.security import security as security_utils
-from auth_engine.models import RoleORM, UserORM, UserRoleORM
+from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
+from auth_engine.models.tenant import TenantType
 
 
 async def seed_super_admin(db: AsyncSession) -> None:
@@ -46,6 +47,28 @@ async def seed_super_admin(db: AsyncSession) -> None:
         db.add(user)
         await db.flush()
 
-    # Assign role
-    db.add(UserRoleORM(user_id=user.id, role_id=super_admin_role.id, tenant_id=None))
-    await db.commit()
+    # 1. Ensure Platform Tenant Exists
+    platform_query = select(TenantORM).where(TenantORM.type == TenantType.PLATFORM)
+    platform_result = await db.execute(platform_query)
+    platform = platform_result.scalar_one_or_none()
+
+    if not platform:
+        platform = TenantORM(
+            name="Platform", type=TenantType.PLATFORM, description="System platform tenant"
+        )
+        db.add(platform)
+        await db.flush()
+
+    # 2. Check if user already has this role in this tenant
+    assignment_query = select(UserRoleORM).where(
+        UserRoleORM.user_id == user.id,
+        UserRoleORM.role_id == super_admin_role.id,
+        UserRoleORM.tenant_id == platform.id,
+    )
+    assignment_result = await db.execute(assignment_query)
+    if not assignment_result.scalar_one_or_none():
+        # Assign role to platform tenant
+        db.add(UserRoleORM(user_id=user.id, role_id=super_admin_role.id, tenant_id=platform.id))
+        await db.commit()
+    else:
+        await db.rollback()  # Nothing to do, but good practice to close transaction if opened

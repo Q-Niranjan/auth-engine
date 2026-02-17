@@ -14,8 +14,8 @@ The core of AuthEngine is its extensible **Strategy Pattern** implementation, al
 - **Biometric WebAuthn**: (Planned) FIDO2 support for hardware keys and biometric passkeys.
 
 ### 🛡️ Advanced Security Architecture
-- **Permission-Based Access Control (PBAC)**: Granular permission system (e.g., `tenant.update`, `platform.users.manage`) for flexible authorization.
-- **Multi-Tenancy**: Built-in organizational isolation with hierarchical role management and tenant-aware guards.
+- **Permission-Based Access Control (PBAC)**: Decoupled authorization logic using granular permissions (e.g., `tenant.roles.assign`, `platform.roles.assign`) rather than fixed role names.
+- **Context-Aware Multi-Tenancy**: Built-in organizational isolation with hierarchical role management and tenant-aware guards that automatically detect context from API paths.
 - **Session & Device Management**: Redis-backed session tracking, allowing users to view active devices and revoke sessions instantly.
 - **Rate Limiting**: Distributed rate limiting using Redis to prevent DDoS and brute-force attacks.
 - **Auto-Bootstrap**: Automatic seeding of Roles, Permissions, and a `SUPER_ADMIN` user on first application startup.
@@ -57,6 +57,34 @@ auth-engine/
 ├── tests/                   # Complete Test Suite
 └── README.md                # Documentation
 ```
+
+## 🛡️ Authorization Model: Scoped PBAC + Level Hierarchy
+
+AuthEngine implements a sophisticated dual-layered authorization system that combines **Permission-Based Access Control (PBAC)** with a **Strict Numerical Hierarchy**.
+
+### 1. Granular Permissions (PBAC)
+Authorization is decoupled from role names. The system checks if an actor possesses a specific permission required for an action within a given context.
+- **Scoped Context**: Permissions are evaluated within a `tenant_id` context. A user might have `tenant.users.manage` in *Tenant A* but only `tenant.view` in *Tenant B*.
+- **Platform Overrides**: Platform-level roles (e.g., `SUPER_ADMIN`) possess global scope, allowing them to perform administrative actions across all tenants seamlessly.
+- **Action-Oriented**: Permissions like `tenant.roles.assign` or `platform.roles.assign` provide clear audit trails and flexible role composition.
+
+### 2. Strict Numerical Level Hierarchy
+To prevent privilege escalation, every role is assigned a `level` weight (0-100).
+- **Rule of Strict Superiority**: An actor can only assign or remove roles that have a level **strictly lower** than their own max level in that context.
+- **Lateral Protection**: A `TENANT_ADMIN` (level 50) cannot manage another `TENANT_ADMIN`, even with the correct permissions. This ensures a clean chain of command.
+- **System Role Protection**: Foundational roles like `SUPER_ADMIN` are protected at the service layer to prevent manual or accidental modification.
+
+| Role | Level | Scope | Description |
+| :--- | :--- | :--- | :--- |
+| **SUPER_ADMIN** | 100 | PLATFORM | Full platform control, bootstrap-only. |
+| **PLATFORM_ADMIN** | 80 | PLATFORM | Manage organizations and platform users. |
+| **TENANT_OWNER** | 60 | TENANT | Full control over a specific organization. |
+| **TENANT_ADMIN** | 50 | TENANT | Administrative access within a tenant. |
+| **TENANT_MANAGER** | 30 | TENANT | Operational management within a tenant. |
+| **TENANT_USER** | 10 | TENANT | Standard authenticated tenant member. |
+
+### 3. Context-Aware Middleware
+The `require_permission` decorator automatically extracts the `tenant_id` from API path parameters and validates the user's permissions for that specific organization.
 
 ## 🛠️ Technology Stack
 

@@ -37,3 +37,17 @@ class UserRepository(PostgresRepository[UserORM]):
         )
         result = await self.session.execute(query)
         return result.unique().scalar_one_or_none()
+
+    async def get_by_phone_number(self, phone_number: str) -> UserORM | None:
+        query = (
+            select(self.model)
+            .where(self.model.phone_number == phone_number)
+            .options(
+                joinedload(UserORM.roles)
+                .joinedload(UserRoleORM.role)
+                .joinedload(RoleORM.permissions)
+                .joinedload(RolePermissionORM.permission)
+            )
+        )
+        result = await self.session.execute(query)
+        return result.unique().scalar_one_or_none()

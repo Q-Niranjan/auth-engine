@@ -1,8 +1,12 @@
+from enum import Enum
 import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+class RoleScope(str, Enum):
+    PLATFORM = "PLATFORM"
+    TENANT = "TENANT"
 
 class PermissionResponse(BaseModel):
     id: uuid.UUID
@@ -16,7 +20,8 @@ class RoleResponse(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None = None
-    scope: str
+    scope: RoleScope | None = None
+    level: int
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

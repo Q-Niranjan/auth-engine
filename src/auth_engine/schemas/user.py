@@ -20,8 +20,8 @@ class UserStatus(str, Enum):
 
 class UserBase(BaseModel):
     email: EmailStr
-    username: str | None = None
     phone_number: str | None = None
+    username: str | None = None
     first_name: str | None = None
     last_name: str | None = None
 

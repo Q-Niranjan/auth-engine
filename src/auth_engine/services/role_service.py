@@ -3,8 +3,11 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from auth_engine.models import RoleORM, UserORM, UserRoleORM
+from auth_engine.models import RoleORM, UserORM, UserRoleORM, TenantORM
+from auth_engine.models.role import RoleScope
+from auth_engine.models.tenant import TenantType
 from auth_engine.repositories.user_repo import UserRepository
+from auth_engine.services.permission_service import PermissionService
 
 
 class RoleService:
@@ -12,7 +15,7 @@ class RoleService:
         self.user_repo = user_repo
 
     async def assign_role(
-        self, actor: UserORM, target_user_id: uuid.UUID, role_name: str, tenant_id: uuid.UUID | None
+        self, actor: UserORM, target_user_id: uuid.UUID, role_name: str, tenant_id: uuid.UUID
     ) -> None:
         """
         Assigns a role to a user based on RBAC hierarchy rules.
@@ -25,48 +28,44 @@ class RoleService:
         if not target_role:
             raise ValueError(f"Role '{role_name}' does not exist")
 
-        # 2. Check Hierarchy Rules
-        ROLE_ASSIGNMENT_HIERARCHY = {
-            "SUPER_ADMIN": [
-                "SUPER_ADMIN",
-                "PLATFORM_ADMIN",
-                "TENANT_OWNER",
-                "TENANT_ADMIN",
-                "TENANT_MANAGER",
-                "TENANT_USER",
-            ],
-            "PLATFORM_ADMIN": ["TENANT_OWNER", "TENANT_ADMIN", "TENANT_MANAGER", "TENANT_USER"],
-            "TENANT_OWNER": ["TENANT_ADMIN", "TENANT_MANAGER", "TENANT_USER"],
-            "TENANT_ADMIN": ["TENANT_MANAGER", "TENANT_USER"],
-            "TENANT_MANAGER": ["TENANT_USER"],
-            "TENANT_USER": [],
-        }
+        # PROTECT SUPER_ADMIN: System role should remain bootstrap-only
+        if target_role.name == "SUPER_ADMIN":
+            raise ValueError("SUPER_ADMIN role cannot be assigned manually")
+        
+        # Fetch tenant
+        tenant = await self.user_repo.session.get(TenantORM, tenant_id)
+        if not tenant:
+            raise ValueError("Tenant not found")
 
-        # Find the highest role of the actor in the relevant context
-        actor_roles = []
+        # Scope enforcement
+        if target_role.scope == RoleScope.PLATFORM and tenant.type != TenantType.PLATFORM:
+            raise ValueError("Platform roles can only be assigned in platform tenant")
+
+        if target_role.scope == RoleScope.TENANT and tenant.type == TenantType.PLATFORM:
+            raise ValueError("Tenant roles cannot be assigned in platform tenant")
+
+        # 2. Authorization: Check if actor has the required permission for the ACTION
+        perm_required = "tenant.roles.assign" if target_role.scope == RoleScope.TENANT else "platform.roles.assign"
+        if not await PermissionService.has_permission(self.user_repo.session, actor, perm_required, tenant_id):
+            raise ValueError(f"Insufficient permissions: Missing '{perm_required}'")
+
+        # 3. Hierarchy: Check if actor's level allows assigning THIS specific role
+        # Find the max level of the actor in the relevant context
+        max_actor_level = -1
         for ur in actor.roles:
-            # If assigning a tenant role, actor must have a role in THAT tenant
-            # or be a platform admin
-            if tenant_id:
-                if ur.tenant_id == tenant_id or ur.role.scope == "platform":
-                    actor_roles.append(ur.role.name)
-            else:
-                # Platform level assignment
-                if ur.role.scope == "platform":
-                    actor_roles.append(ur.role.name)
+            if ur.tenant_id == tenant_id or ur.role.scope == RoleScope.PLATFORM:
+                if ur.role.level > max_actor_level:
+                    max_actor_level = ur.role.level
 
-        if not actor_roles:
+        if max_actor_level == -1:
             raise ValueError("Insufficient permissions: You have no active roles for this context")
 
-        # Check if any of actor's roles allow assigning target_role
-        can_assign = False
-        for ar in actor_roles:
-            if role_name in ROLE_ASSIGNMENT_HIERARCHY.get(ar, []):
-                can_assign = True
-                break
-
-        if not can_assign:
-            raise ValueError(f"Insufficient permissions: You cannot assign the '{role_name}' role")
+        # RULE: Actor must be STRICTLY higher level than the target role
+        if target_role.level >= max_actor_level:
+            raise ValueError(
+                f"Insufficient level: You cannot assign a role with level {target_role.level} "
+                f"(your max level {max_actor_level} must be strictly higher)"
+            )
 
         # 3. Create assignment
         # Check if already assigned
@@ -86,7 +85,7 @@ class RoleService:
         await self.user_repo.session.commit()
 
     async def remove_role(
-        self, actor: UserORM, target_user_id: uuid.UUID, role_name: str, tenant_id: uuid.UUID | None
+        self, actor: UserORM, target_user_id: uuid.UUID, role_name: str, tenant_id: uuid.UUID
     ) -> bool:
         """
         Removes a role from a user based on RBAC hierarchy rules.
@@ -99,43 +98,31 @@ class RoleService:
         if not target_role:
             raise ValueError(f"Role '{role_name}' does not exist")
 
-        # 2. Check Hierarchy Rules (Simplified: if you can assign it, you can remove it)
-        ROLE_ASSIGNMENT_HIERARCHY = {
-            "SUPER_ADMIN": [
-                "SUPER_ADMIN",
-                "PLATFORM_ADMIN",
-                "TENANT_OWNER",
-                "TENANT_ADMIN",
-                "TENANT_MANAGER",
-                "TENANT_USER",
-            ],
-            "PLATFORM_ADMIN": ["TENANT_OWNER", "TENANT_ADMIN", "TENANT_MANAGER", "TENANT_USER"],
-            "TENANT_OWNER": ["TENANT_ADMIN", "TENANT_MANAGER", "TENANT_USER"],
-            "TENANT_ADMIN": ["TENANT_MANAGER", "TENANT_USER"],
-            "TENANT_MANAGER": ["TENANT_USER"],
-            "TENANT_USER": [],
-        }
+        # PROTECT SUPER_ADMIN: Cannot be removed manually through this service
+        if target_role.name == "SUPER_ADMIN":
+            raise ValueError("SUPER_ADMIN role cannot be removed manually")
 
-        actor_roles = []
+        # 2. Authorization
+        perm_required = "tenant.roles.assign" if target_role.scope == RoleScope.TENANT else "platform.roles.assign"
+        if not await PermissionService.has_permission(self.user_repo.session, actor, perm_required, tenant_id):
+            raise ValueError(f"Insufficient permissions: Missing '{perm_required}'")
+
+        # 3. Hierarchy
+        max_actor_level = -1
         for ur in actor.roles:
-            if tenant_id:
-                if ur.tenant_id == tenant_id or ur.role.scope == "platform":
-                    actor_roles.append(ur.role.name)
-            else:
-                if ur.role.scope == "platform":
-                    actor_roles.append(ur.role.name)
+            if ur.tenant_id == tenant_id or ur.role.scope == RoleScope.PLATFORM:
+                if ur.role.level > max_actor_level:
+                    max_actor_level = ur.role.level
 
-        if not actor_roles:
-            raise ValueError("Insufficient permissions")
+        if max_actor_level == -1:
+            raise ValueError("Insufficient permissions: You have no active roles for this context")
 
-        can_remove = False
-        for ar in actor_roles:
-            if role_name in ROLE_ASSIGNMENT_HIERARCHY.get(ar, []):
-                can_remove = True
-                break
-
-        if not can_remove:
-            raise ValueError(f"Insufficient permissions to remove '{role_name}'")
+        # RULE: Actor must be STRICTLY higher level than the target role to remove it
+        if target_role.level >= max_actor_level:
+            raise ValueError(
+                f"Insufficient level: You cannot remove a role with level {target_role.level} "
+                f"(your max level {max_actor_level} must be strictly higher)"
+            )
 
         # 3. Perform removal
         delete_query = select(UserRoleORM).where(
@@ -167,6 +154,6 @@ class RoleService:
         """
         List all roles that can be assigned within a tenant.
         """
-        query = select(RoleORM).where(RoleORM.scope != "platform")
+        query = select(RoleORM).where(RoleORM.scope != RoleScope.PLATFORM)
         result = await self.user_repo.session.execute(query)
         return list(result.scalars().all())

@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload
 
 from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
 from auth_engine.repositories.user_repo import UserRepository
+from auth_engine.services.permission_service import PermissionService
 
 
 class TenantService:
@@ -42,12 +43,18 @@ class TenantService:
         result = await self.user_repo.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_tenant(self, tenant_id: uuid.UUID) -> TenantORM | None:
+    async def get_tenant(self, tenant_id: uuid.UUID, actor: UserORM | None = None) -> TenantORM | None:
+        if actor and not await PermissionService.has_permission(self.user_repo.session, actor, "tenant.view", tenant_id):
+            raise ValueError("Insufficient permissions: Missing 'tenant.view'")
+
         query = select(TenantORM).where(TenantORM.id == tenant_id)
         result = await self.user_repo.session.execute(query)
         return result.scalar_one_or_none()
 
-    async def update_tenant(self, tenant_id: uuid.UUID, **kwargs: Any) -> TenantORM | None:
+    async def update_tenant(self, tenant_id: uuid.UUID, actor: UserORM, **kwargs: Any) -> TenantORM | None:
+        if not await PermissionService.has_permission(self.user_repo.session, actor, "tenant.update", tenant_id):
+            raise ValueError("Insufficient permissions: Missing 'tenant.update'")
+
         tenant = await self.get_tenant(tenant_id)
         if not tenant:
             return None
@@ -60,7 +67,10 @@ class TenantService:
         await self.user_repo.session.refresh(tenant)
         return tenant
 
-    async def delete_tenant(self, tenant_id: uuid.UUID) -> bool:
+    async def delete_tenant(self, tenant_id: uuid.UUID, actor: UserORM) -> bool:
+        if not await PermissionService.has_permission(self.user_repo.session, actor, "tenant.delete", tenant_id):
+            raise ValueError("Insufficient permissions: Missing 'tenant.delete'")
+
         tenant = await self.get_tenant(tenant_id)
         if not tenant:
             return False
@@ -69,7 +79,10 @@ class TenantService:
         await self.user_repo.session.commit()
         return True
 
-    async def list_tenant_users(self, tenant_id: uuid.UUID) -> list[UserORM]:
+    async def list_tenant_users(self, tenant_id: uuid.UUID, actor: UserORM) -> list[UserORM]:
+        if not await PermissionService.has_permission(self.user_repo.session, actor, "tenant.users.view", tenant_id):
+            raise ValueError("Insufficient permissions: Missing 'tenant.users.view'")
+
         query = (
             select(UserORM)
             .join(UserRoleORM, UserRoleORM.user_id == UserORM.id)
@@ -80,10 +93,13 @@ class TenantService:
         result = await self.user_repo.session.execute(query)
         return list(result.unique().scalars().all())
 
-    async def remove_user_from_tenant(self, tenant_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    async def remove_user_from_tenant(self, tenant_id: uuid.UUID, user_id: uuid.UUID, actor: UserORM) -> bool:
         """
         Removes all role mappings for a user in a specific tenant (not deleting user globally).
         """
+        if not await PermissionService.has_permission(self.user_repo.session, actor, "tenant.users.manage", tenant_id):
+            raise ValueError("Insufficient permissions: Missing 'tenant.users.manage'")
+
         query = select(UserRoleORM).where(
             UserRoleORM.tenant_id == tenant_id, UserRoleORM.user_id == user_id
         )

@@ -29,6 +29,11 @@ class AuthService:
             if existing_user:
                 raise ValueError("Username already taken")
 
+        if user_in.phone_number:
+            existing_user = await self.user_repo.get_by_phone_number(user_in.phone_number)
+            if existing_user:
+                raise ValueError("User with this phone number already exists")
+
         # Hash password
         password_hash = security.hash_password(user_in.password)
 
@@ -37,6 +42,7 @@ class AuthService:
             "id": str(uuid.uuid4()),
             "email": user_in.email,
             "username": user_in.username,
+            "phone_number": user_in.phone_number,
             "password_hash": password_hash,
             "first_name": user_in.first_name,
             "last_name": user_in.last_name,
@@ -48,18 +54,28 @@ class AuthService:
 
         user = await self.user_repo.create(user_data)
 
-        # Assign default role TENANT_USER
+        # Assign default role TENANT_USER in the Platform Tenant context
+        from auth_engine.models.tenant import TenantORM, TenantType
+        
         role_query = select(RoleORM).where(RoleORM.name == "TENANT_USER")
         role_result = await self.user_repo.session.execute(role_query)
         tenant_user_role = role_result.scalar_one_or_none()
 
         if tenant_user_role:
-            user_role = UserRoleORM(
-                user_id=user.id,
-                role_id=tenant_user_role.id,
-                tenant_id=None,  # Default registration has no tenant context yet
-            )
-            self.user_repo.session.add(user_role)
+            # Find the Platform tenant
+            platform_query = select(TenantORM.id).where(TenantORM.type == TenantType.PLATFORM)
+            platform_result = await self.user_repo.session.execute(platform_query)
+            platform_tenant_id = platform_result.scalar()
+
+            if platform_tenant_id:
+                user_role = UserRoleORM(
+                    user_id=user.id,
+                    role_id=tenant_user_role.id,
+                    tenant_id=platform_tenant_id,
+                )
+                self.user_repo.session.add(user_role)
+            else:
+                logger.warning("Platform tenant not found during user registration. Role not assigned.")
 
         await self.user_repo.session.commit()
         return user

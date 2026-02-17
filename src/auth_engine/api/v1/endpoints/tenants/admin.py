@@ -49,17 +49,19 @@ async def list_my_tenants(
 async def get_tenant_details(
     tenant_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: UserORM = Depends(require_permission("tenant.view")),
 ) -> TenantORM:
     """
     Get detailed information about a specific tenant.
-    Enforces tenant isolation.
+    Scoping handled by permission check.
     """
-    await (enforce_tenant_isolation(str(tenant_id)))(current_user)
-
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo)
-    tenant = await tenant_service.get_tenant(tenant_id)
+    try:
+        tenant = await tenant_service.get_tenant(tenant_id, actor=current_user)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
@@ -74,15 +76,16 @@ async def update_tenant(
 ) -> TenantORM:
     """
     Update tenant information.
-    Requires TENANT_OWNER, TENANT_ADMIN, or platform admin.
+    Requires tenant.update permission.
     """
-    await (enforce_tenant_isolation(str(tenant_id)))(current_user)
-
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo)
-    updated = await tenant_service.update_tenant(
-        tenant_id, **tenant_in.model_dump(exclude_unset=True)
-    )
+    try:
+        updated = await tenant_service.update_tenant(
+            tenant_id, actor=current_user, **tenant_in.model_dump(exclude_unset=True)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     if not updated:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return updated
@@ -96,18 +99,14 @@ async def delete_tenant(
 ) -> None:
     """
     Delete a tenant.
-    Requires TENANT_OWNER or platform admin.
+    Requires tenant.delete permission.
     """
-    # For TENANT_OWNER, check isolation
-    is_platform_admin = any(
-        ur.role.name in ["SUPER_ADMIN", "PLATFORM_ADMIN"] for ur in current_user.roles
-    )
-    if not is_platform_admin:
-        await (enforce_tenant_isolation(str(tenant_id)))(current_user)
-
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo)
-    success = await tenant_service.delete_tenant(tenant_id)
+    try:
+        success = await tenant_service.delete_tenant(tenant_id, actor=current_user)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     if not success:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
@@ -116,13 +115,11 @@ async def delete_tenant(
 async def list_tenant_roles(
     tenant_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: UserORM = Depends(require_permission("tenant.roles.view")),
 ) -> list[RoleORM]:
     """
     List all available roles that can be assigned within this tenant.
     """
-    await (enforce_tenant_isolation(str(tenant_id)))(current_user)
-
     user_repo = UserRepository(db)
     role_service = RoleService(user_repo)
     return await role_service.list_tenant_roles()
@@ -140,11 +137,12 @@ async def list_tenant_users(
     """
     List all users belonging to a tenant.
     """
-    await (enforce_tenant_isolation(str(tenant_id)))(current_user)
-
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo)
-    return await tenant_service.list_tenant_users(tenant_id)
+    try:
+        return await tenant_service.list_tenant_users(tenant_id, actor=current_user)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router.post("/{tenant_id}/users", status_code=status.HTTP_201_CREATED)
@@ -178,13 +176,13 @@ async def remove_user_from_tenant(
 ) -> None:
     """
     Remove a user from a tenant (removes all roles in this tenant).
-    Does NOT delete the user account globally.
     """
-    await (enforce_tenant_isolation(str(tenant_id)))(current_user)
-
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo)
-    success = await tenant_service.remove_user_from_tenant(tenant_id, user_id)
+    try:
+        success = await tenant_service.remove_user_from_tenant(tenant_id, user_id, actor=current_user)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     if not success:
         raise HTTPException(status_code=404, detail="User not found in tenant")
 
@@ -194,13 +192,11 @@ async def get_user_tenant_roles(
     tenant_id: uuid.UUID,
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: UserORM = Depends(require_permission("tenant.roles.view")),
 ) -> list[UserRoleORM]:
     """
     Get all roles a specific user has within a tenant.
     """
-    await (enforce_tenant_isolation(str(tenant_id)))(current_user)
-
     user_repo = UserRepository(db)
     role_service = RoleService(user_repo)
     return await role_service.get_user_roles_in_tenant(user_id, tenant_id)
@@ -212,7 +208,7 @@ async def assign_user_role(
     user_id: uuid.UUID,
     assignment: RoleAssignment,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: UserORM = Depends(require_permission("tenant.roles.assign")),
 ) -> dict[str, str]:
     """
     Assign a role to a user within a tenant.
@@ -220,7 +216,7 @@ async def assign_user_role(
     """
     user_repo = UserRepository(db)
     role_service = RoleService(user_repo)
-
+    
     try:
         await role_service.assign_role(
             actor=current_user,
@@ -228,7 +224,7 @@ async def assign_user_role(
             role_name=assignment.role_name,
             tenant_id=tenant_id,
         )
-        return {"message": "Role assigned successfully"}
+        return {"message": f"Role '{assignment.role_name}' assigned successfully"}
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
 
@@ -241,7 +237,7 @@ async def remove_user_role(
     user_id: uuid.UUID,
     role_name: str,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(get_current_active_user),
+    current_user: UserORM = Depends(require_permission("tenant.roles.assign")),
 ) -> None:
     """
     Remove a specific role from a user within a tenant.

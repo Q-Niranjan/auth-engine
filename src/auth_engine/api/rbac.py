@@ -5,49 +5,40 @@ from typing import Any
 from fastapi import Depends, HTTPException, status
 
 from auth_engine.api.auth_deps import get_current_user
+from auth_engine.api.deps import get_db
 from auth_engine.models import UserORM
-
-
-def require_role(*allowed_roles: str) -> Callable[..., Coroutine[Any, Any, UserORM]]:
-    async def checker(
-        current_user: UserORM = Depends(get_current_user),
-    ) -> UserORM:
-        # We need to ensure roles and their nested data are loaded
-        # Since we use AsyncSession, we might need to be careful about lazy loading
-        # In current_user (fetched in get_current_user), it depends on how it was loaded.
-        # Assuming the repo or dependency loaded it correctly or we use joinload.
-
-        user_roles = [ur.role.name for ur in current_user.roles]
-
-        if not any(role in allowed_roles for role in user_roles):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient role",
-            )
-
-        return current_user
-
-    return checker
+from auth_engine.services.permission_service import PermissionService
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def require_permission(
     *required_permissions: str,
 ) -> Callable[..., Coroutine[Any, Any, UserORM]]:
+    """
+    Check if the user has ANY of the required permissions in the current context.
+    If 'tenant_id' is in the path, it checks within that tenant.
+    Otherwise, it checks the Platform context.
+    """
     async def checker(
         current_user: UserORM = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+        tenant_id: str | None = None # This will pick up "tenant_id" from path if it exists
     ) -> UserORM:
-        user_perms = set()
-        for ur in current_user.roles:
-            for rp in ur.role.permissions:
-                user_perms.add(rp.permission.name)
+        t_id = None
+        if tenant_id:
+            try:
+                t_id = uuid.UUID(tenant_id)
+            except ValueError:
+                pass
 
-        if not any(perm in user_perms for perm in required_permissions):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions",
-            )
+        for perm in required_permissions:
+            if await PermissionService.has_permission(db, current_user, perm, t_id):
+                return current_user
 
-        return current_user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )
 
     return checker
 
