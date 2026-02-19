@@ -91,7 +91,7 @@ class AuthService:
             raise ValueError(f"User account is {user.status}")
 
         # Update last login
-        user.last_login_at = datetime.utcnow()  # type: ignore[assignment]
+        user.last_login_at = datetime.utcnow()
         await self.user_repo.session.commit()
 
         return user
@@ -224,7 +224,7 @@ class AuthService:
         if not user:
             raise ValueError("User not found")
 
-        user.is_email_verified = True  # type: ignore[assignment]
+        user.is_email_verified = True
         if user.status == UserStatus.PENDING_VERIFICATION:
             user.status = UserStatus.ACTIVE
 
@@ -248,7 +248,7 @@ class AuthService:
         if not user:
             return False
 
-        user.is_phone_verified = True  # type: ignore[assignment]
+        user.is_phone_verified = True
         # Optionally update status if it was pending
         if user.status == UserStatus.PENDING_VERIFICATION and user.is_email_verified:
             user.status = UserStatus.ACTIVE

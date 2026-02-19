@@ -1,0 +1,113 @@
+services:
+
+  # ─────────────────────────────────────────────
+  # AuthEngine Application
+  # ─────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: authengine-app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override URLs to use Docker service names instead of localhost
+      POSTGRES_URL: postgresql+asyncpg://authengine:${POSTGRES_PASSWORD:-strongpassword}@postgres:5432/authengine
+      MONGODB_URL: mongodb://admin:${MONGO_PASSWORD:-strongpassword}@mongo:27017
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - authengine-network
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL — Primary Database
+  # ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: authengine-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: authengine
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strongpassword}
+      POSTGRES_DB: authengine
+    volumes:
+      - authengine_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authengine -d authengine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - authengine-network
+
+  # ─────────────────────────────────────────────
+  # MongoDB — Audit Logs
+  # ─────────────────────────────────────────────
+  mongo:
+    image: mongo:latest
+    container_name: authengine-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-strongpassword}
+    volumes:
+      - authengine_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - authengine-network
+
+  # ─────────────────────────────────────────────
+  # Redis — Sessions, Rate Limiting, OAuth State
+  # No password required for local development
+  # ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: authengine-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - authengine_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - authengine-network
+
+# ─────────────────────────────────────────────
+# Volumes — persistent data survives restarts
+# ─────────────────────────────────────────────
+volumes:
+  authengine_pg_data:
+    name: authengine_pg_data
+  authengine_mongo_data:
+    name: authengine_mongo_data
+  authengine_redis_data:
+    name: authengine_redis_data
+
+# ─────────────────────────────────────────────
+# Network — isolated bridge network
+# ─────────────────────────────────────────────
+networks:
+  authengine-network:
+    name: authengine-network
+    driver: bridge

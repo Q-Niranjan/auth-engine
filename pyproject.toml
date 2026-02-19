@@ -20,7 +20,9 @@ dependencies = [
     "pydantic[email]",
     "psycopg2",
     "psycopg2-binary",
-    "sendgrid",  
+    "sendgrid", 
+    "authlib>=1.3.0",
+    "httpx>=0.27.0",
 ]
 
 [tool.ruff]
