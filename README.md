@@ -122,50 +122,75 @@ The `require_permission` decorator automatically extracts the `tenant_id` from A
    auth-engine run
    ```
 
-## API Endpoints (v1 Highlights)
+## API Endpoints (v1)
 
 ### Public Authentication
-| Method   | Endpoint                              | Description                              |
-|----------|---------------------------------------|------------------------------------------|
-| `POST`   | `/api/v1/auth/register`               | User Registration                        |
-| `POST`   | `/api/v1/auth/login`                  | Login with Session Creation              |
-| `POST`   | `/api/v1/auth/logout`                 | Global Session Revocation                |
-| `POST`   | `/api/v1/auth/refresh`                | Refresh Access Token                     |
-| `POST`   | `/api/v1/auth/reset-password`         | Initiate Password Reset                  |
-| `GET`    | `/api/v1/auth/verify-email`           | Verify Email with Token                  |
-| `POST`   | `/api/v1/auth/verify-phone`           | Verify Phone with OTP                    |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/auth/register` | Register new user |
+| `POST` | `/api/v1/auth/login` | Login with session creation |
+| `POST` | `/api/v1/auth/logout` | Logout and revoke session |
+| `POST` | `/api/v1/auth/refresh` | Refresh access token |
+| `POST` | `/api/v1/auth/reset-password` | Initiate password reset |
+| `GET`  | `/api/v1/auth/verify-email` | Verify email with token |
+| `POST` | `/api/v1/auth/verify-phone` | Verify phone with OTP |
+| `POST` | `/api/v1/auth/request-token` | Request action token |
 
 ### User Context (Me)
-| Method   | Endpoint                              | Description                              |
-|----------|---------------------------------------|------------------------------------------|
-| `GET`    | `/api/v1/me`                          | Get Current User Profile                 |
-| `GET`    | `/api/v1/me/tenants`                  | List User's Tenants                      |
-| `GET`    | `/api/v1/me/tenants/{tenant_id}/permissions` | Get User Permissions in Tenant    |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/me` | Get current user profile |
+| `GET` | `/api/v1/me/tenants` | List user's tenants |
+| `GET` | `/api/v1/me/tenants/{tenant_id}/permissions` | Get user permissions in tenant |
 
-### Platform Management
-| Method   | Endpoint                              | Description                              |
-|----------|---------------------------------------|------------------------------------------|
-| `GET`    | `/api/v1/platform/users`              | List All Users (Platform)                |
-| `GET`    | `/api/v1/platform/users/{user_id}`    | Get User Details                         |
-| `GET`    | `/api/v1/platform/tenants`            | List All Tenants                         |
-| `POST`   | `/api/v1/platform/tenants`            | Create Tenant                            |
-| `GET`    | `/api/v1/platform/tenants/{tenant_id}`| Get Tenant Details                       |
-| `GET`    | `/api/v1/platform/roles`              | List Platform Roles                      |
-| `GET`    | `/api/v1/platform/audit-logs`         | Platform Audit Logs                      |
+### Platform — Tenants
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`    | `/api/v1/platform/tenants` | List all tenants |
+| `POST`   | `/api/v1/platform/tenants` | Create tenant |
+| `GET`    | `/api/v1/platform/tenants/{tenant_id}` | Get tenant |
+| `PUT`    | `/api/v1/platform/tenants/{tenant_id}` | Update tenant |
+| `DELETE` | `/api/v1/platform/tenants/{tenant_id}` | Delete tenant |
 
-### Tenant Management
-| Method   | Endpoint                              | Description                              |
-|----------|---------------------------------------|------------------------------------------|
-| `GET`    | `/api/v1/tenants/{tenant_id}/users`   | List Tenant Users                        |
-| `POST`   | `/api/v1/tenants/{tenant_id}/users`   | Add User to Tenant                       |
-| `GET`    | `/api/v1/tenants/{tenant_id}/roles`   | List Tenant Roles                        |
-| `POST`   | `/api/v1/tenants/{tenant_id}/roles`   | Create Tenant Role                       |
-| `GET`    | `/api/v1/tenants/{tenant_id}/audit-logs` | Tenant Audit Logs                    |
+### Platform — Roles
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`    | `/api/v1/platform/roles` | List platform roles |
+| `POST`   | `/api/v1/platform/users/{user_id}/roles` | Assign role to user |
+| `DELETE` | `/api/v1/platform/users/{user_id}/roles/{role_name}` | Remove role from user |
+
+### Platform — Audit
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/platform/audit-logs` | Get platform audit logs |
+| `GET` | `/api/v1/platform/tenants/{tenant_id}/audit-logs` | Get tenant audit logs (platform scope) |
+
+### Tenant — Users
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`    | `/api/v1/tenants/{tenant_id}/users` | List tenant users |
+| `POST`   | `/api/v1/tenants/{tenant_id}/users` | Invite user to tenant |
+| `GET`    | `/api/v1/tenants/{tenant_id}/users/{user_id}` | Get tenant user |
+| `DELETE` | `/api/v1/tenants/{tenant_id}/users/{user_id}` | Remove user from tenant |
+
+### Tenant — Roles
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET`    | `/api/v1/tenants/{tenant_id}/roles` | List tenant roles |
+| `GET`    | `/api/v1/tenants/{tenant_id}/users/{user_id}/roles` | Get user's roles in tenant |
+| `POST`   | `/api/v1/tenants/{tenant_id}/users/{user_id}/roles` | Assign role to user in tenant |
+| `DELETE` | `/api/v1/tenants/{tenant_id}/users/{user_id}/roles/{role_name}` | Remove role from user in tenant |
+
+### Tenant — Audit
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/tenants/{tenant_id}/audit-logs` | Get tenant audit logs |
 
 ### System
-| Method   | Endpoint                              | Description                              |
-|----------|---------------------------------------|------------------------------------------|
-| `GET`    | `/api/v1/health`                      | System health (DB/Redis status)          |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/` | Root |
+| `GET` | `/api/v1/health` | Health check (DB/Redis status) |
 
 ## Testing
 

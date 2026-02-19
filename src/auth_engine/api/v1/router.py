@@ -11,11 +11,9 @@ api_router.include_router(public.auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(me.endpoints.router, prefix="", tags=["me"])
 
 # Platform Management
-api_router.include_router(platform.user.router, prefix="/platform/users", tags=["platform-users"])
-api_router.include_router(
-    platform.tenant.router, prefix="/platform/tenants", tags=["platform-tenants"]
-)
-api_router.include_router(platform.roles.router, prefix="/platform/roles", tags=["platform-roles"])
+api_router.include_router(platform.user.router, prefix="/platform", tags=["platform-users"])
+api_router.include_router(platform.tenant.router, prefix="/platform", tags=["platform-tenants"])
+api_router.include_router(platform.roles.router, prefix="/platform", tags=["platform-roles"])
 api_router.include_router(platform.audit.router, prefix="/platform", tags=["platform-audit"])
 
 # Tenant Management

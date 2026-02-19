@@ -268,7 +268,7 @@ class TenantService:
         email_service_resolver: Any,
         ip_address: str | None = None,
         user_agent: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, str]:
         """
         Invite a user to a tenant with a specific role.
         If user doesn't exist, register them with PENDING_VERIFICATION status.
@@ -399,3 +399,28 @@ class TenantService:
             "user_id": str(user.id),
             "status": "existing" if existing_user else "newly_registered",
         }
+
+    async def get_user_in_tenant(
+        self,
+        tenant_id: uuid.UUID,
+        user_id: uuid.UUID,
+        actor: UserORM,
+    ) -> UserORM | None:
+        # Permission check
+        if not await PermissionService.has_permission(
+            self.user_repo.session, actor, "tenant.users.view", tenant_id
+        ):
+            raise ValueError("Insufficient permissions: Missing 'tenant.users.view'")
+
+        query = (
+            select(UserORM)
+            .join(UserRoleORM, UserRoleORM.user_id == UserORM.id)
+            .where(
+                UserORM.id == user_id,
+                UserRoleORM.tenant_id == tenant_id,
+            )
+            .options(joinedload(UserORM.roles).joinedload(UserRoleORM.role))
+        )
+
+        result = await self.user_repo.session.execute(query)
+        return result.unique().scalar_one_or_none()

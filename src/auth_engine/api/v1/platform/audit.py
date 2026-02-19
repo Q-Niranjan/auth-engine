@@ -56,7 +56,7 @@ async def get_platform_audit_logs(
 
 
 @router.get(
-    "/{tenant_id}/audit-logs",
+    "/tenants/{tenant_id}/audit-logs",
     response_model=list[AuditLog],
     status_code=status.HTTP_200_OK,
 )

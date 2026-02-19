@@ -16,7 +16,7 @@ from auth_engine.services.user_service import UserService
 router = APIRouter()
 
 
-@router.get("/", response_model=list[UserResponse])
+@router.get("/users", response_model=list[UserResponse])
 async def list_all_users(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(check_platform_permission("platform.users.manage")),
@@ -30,7 +30,7 @@ async def list_all_users(
     return [UserResponse.model_validate(u) for u in users]
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/users/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -51,7 +51,7 @@ async def get_user(
     return UserResponse.model_validate(user)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_global_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -72,7 +72,7 @@ async def delete_global_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
 
-@router.patch("/{user_id}", response_model=UserResponse)
+@router.patch("/users/{user_id}", response_model=UserResponse)
 async def update_user_status(
     user_id: uuid.UUID,
     status_update: UserStatusUpdate,

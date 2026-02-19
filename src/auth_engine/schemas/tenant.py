@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class TenantType(str, Enum):
@@ -33,3 +33,8 @@ class TenantResponse(TenantBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TenantInviteRequest(BaseModel):
+    email: EmailStr
+    role_name: str = "TENANT_USER"

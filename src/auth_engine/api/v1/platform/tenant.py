@@ -15,7 +15,7 @@ from auth_engine.services.tenant_service import TenantService
 router = APIRouter()
 
 
-@router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/tenants", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
 async def create_tenant(
     tenant_in: TenantCreate,
     request: Request,
@@ -41,7 +41,7 @@ async def create_tenant(
     return TenantResponse.model_validate(tenant)
 
 
-@router.get("/", response_model=list[TenantResponse])
+@router.get("/tenants", response_model=list[TenantResponse])
 async def list_all_tenants(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(check_platform_permission("platform.tenants.manage")),
@@ -55,7 +55,7 @@ async def list_all_tenants(
     return [TenantResponse.model_validate(t) for t in tenants]
 
 
-@router.get("/{tenant_id}", response_model=TenantResponse)
+@router.get("/tenants/{tenant_id}", response_model=TenantResponse)
 async def get_tenant(
     tenant_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -72,7 +72,7 @@ async def get_tenant(
     return TenantResponse.model_validate(tenant)
 
 
-@router.put("/{tenant_id}", response_model=TenantResponse)
+@router.put("/tenants/{tenant_id}", response_model=TenantResponse)
 async def update_tenant(
     tenant_id: uuid.UUID,
     tenant_in: TenantUpdate,
@@ -99,7 +99,7 @@ async def update_tenant(
     return TenantResponse.model_validate(tenant)
 
 
-@router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/tenants/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tenant(
     tenant_id: uuid.UUID,
     request: Request,

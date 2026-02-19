@@ -10,29 +10,32 @@ from auth_engine.models import RoleORM, TenantORM, UserORM
 from auth_engine.models.role import RoleScope
 from auth_engine.models.tenant import TenantType
 from auth_engine.repositories.user_repo import UserRepository
+from auth_engine.schemas.rbac import RoleAssignment, RoleResponse
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.role_service import RoleService
 
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/roles")
 async def list_roles(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(check_platform_permission("platform.roles.assign")),
-) -> list[RoleORM]:
+) -> list[RoleResponse]:
     """
     List roles applicable to the platform management context.
     """
     query = select(RoleORM).where(RoleORM.scope == RoleScope.PLATFORM)
     result = await db.execute(query)
-    return list(result.scalars().all())
+    roles = result.scalars().all()
+
+    return [RoleResponse.model_validate(role) for role in roles]
 
 
 @router.post("/users/{user_id}/roles")
 async def assign_role_to_user(
     user_id: uuid.UUID,
-    role_name: str,
+    assignment: RoleAssignment,
     db: AsyncSession = Depends(get_db),
     audit_service: AuditService = Depends(get_audit_service),
     current_user: UserORM = Depends(check_platform_permission("platform.roles.assign")),
@@ -53,7 +56,10 @@ async def assign_role_to_user(
 
     try:
         await role_service.assign_role(
-            actor=current_user, target_user_id=user_id, role_name=role_name, tenant_id=platform_id
+            actor=current_user,
+            target_user_id=user_id,
+            role_name=assignment.role_name,
+            tenant_id=platform_id,
         )
         return {"status": "success"}
     except ValueError as e:
