@@ -5,6 +5,7 @@ from auth_engine.core.config import settings
 from auth_engine.core.security import security as security_utils
 from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
 from auth_engine.models.tenant import TenantType
+from auth_engine.schemas.user import UserStatus
 
 
 async def seed_super_admin(db: AsyncSession) -> None:
@@ -41,7 +42,7 @@ async def seed_super_admin(db: AsyncSession) -> None:
             password_hash=security_utils.hash_password(settings.SUPERADMIN_PASSWORD),
             first_name="Super",
             last_name="Admin",
-            status="active",
+            status=UserStatus.ACTIVE,
             is_email_verified=True,
         )
         db.add(user)
@@ -50,11 +51,15 @@ async def seed_super_admin(db: AsyncSession) -> None:
     # 1. Ensure Platform Tenant Exists
     platform_query = select(TenantORM).where(TenantORM.type == TenantType.PLATFORM)
     platform_result = await db.execute(platform_query)
-    platform = platform_result.scalar_one_or_none()
+    platform = platform_result.scalars().first()
 
     if not platform:
         platform = TenantORM(
-            name="Platform", type=TenantType.PLATFORM, description="System platform tenant"
+            name="Platform",
+            type=TenantType.PLATFORM,
+            description="System platform tenant",
+            owner_id=user.id,
+            created_by=user.id,
         )
         db.add(platform)
         await db.flush()

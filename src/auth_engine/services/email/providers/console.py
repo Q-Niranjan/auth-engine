@@ -1,7 +1,9 @@
 import logging
+
 from auth_engine.services.email.base import EmailProvider
 
 logger = logging.getLogger(__name__)
+
 
 class ConsoleEmailProvider(EmailProvider):
     """Console implementation for testing/debugging when no provider is configured."""

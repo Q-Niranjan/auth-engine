@@ -12,10 +12,10 @@ class AuthStrategy(str, Enum):
 
 
 class UserStatus(str, Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    SUSPENDED = "suspended"
-    PENDING_VERIFICATION = "pending_verification"
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    SUSPENDED = "SUSPENDED"
+    PENDING_VERIFICATION = "PENDING_VERIFICATION"
 
 
 class UserBase(BaseModel):
@@ -39,6 +39,10 @@ class UserUpdate(BaseModel):
     avatar_url: str | None = None
 
 
+class UserStatusUpdate(BaseModel):
+    status: UserStatus
+
+
 class PasswordUpdate(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8, max_length=100)
@@ -46,6 +50,14 @@ class PasswordUpdate(BaseModel):
 
 class PasswordReset(BaseModel):
     email: EmailStr
+    tenant_id: uuid.UUID | None = None
+
+
+class TokenRequest(BaseModel):
+    email: EmailStr
+    action_type: str = Field(
+        ..., description="e.g. email_verification, phone_verification, password_reset"
+    )
     tenant_id: uuid.UUID | None = None
 
 

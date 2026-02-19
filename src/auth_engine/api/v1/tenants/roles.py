@@ -1,8 +1,10 @@
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from auth_engine.api.dependencies.deps import get_audit_service, get_db
-from auth_engine.api.dependencies.rbac import require_permission
+from auth_engine.api.dependencies.rbac import check_tenant_permission
 from auth_engine.models import RoleORM, UserORM, UserRoleORM
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.rbac import RoleAssignment, RoleResponse, UserRoleResponse
@@ -16,7 +18,7 @@ router = APIRouter()
 async def list_tenant_roles(
     tenant_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(require_permission("tenant.roles.view")),
+    current_user: UserORM = Depends(check_tenant_permission("tenant.roles.assign")),
 ) -> list[RoleORM]:
     """
     List all available roles that can be assigned within this tenant.
@@ -31,7 +33,7 @@ async def get_user_tenant_roles(
     tenant_id: uuid.UUID,
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(require_permission("tenant.roles.view")),
+    current_user: UserORM = Depends(check_tenant_permission("tenant.roles.assign")),
 ) -> list[UserRoleORM]:
     """
     Get all roles a specific user has within a tenant.
@@ -47,12 +49,11 @@ async def assign_user_role(
     user_id: uuid.UUID,
     assignment: RoleAssignment,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(require_permission("tenant.roles.assign")),
+    current_user: UserORM = Depends(check_tenant_permission("tenant.roles.assign")),
     audit_service: AuditService = Depends(get_audit_service),
 ) -> dict[str, str]:
     """
     Assign a role to a user within a tenant.
-    Enforces RBAC hierarchy.
     """
     user_repo = UserRepository(db)
     role_service = RoleService(user_repo, audit_service)
@@ -77,12 +78,11 @@ async def remove_user_role(
     user_id: uuid.UUID,
     role_name: str,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(require_permission("tenant.roles.assign")),
+    current_user: UserORM = Depends(check_tenant_permission("tenant.roles.assign")),
     audit_service: AuditService = Depends(get_audit_service),
 ) -> None:
     """
     Remove a specific role from a user within a tenant.
-    Enforces RBAC hierarchy.
     """
     user_repo = UserRepository(db)
     role_service = RoleService(user_repo, audit_service)

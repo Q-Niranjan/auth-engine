@@ -33,14 +33,22 @@ auth-engine/
 ├── alembic/             # Database migrations
 ├── src/
 │   └── auth_engine/
-│       ├── api/         # API Layer (v1 routes, dependencies, RBAC logic)
-│       ├── auth_strategies/ # Auth Strategy implementations (Email, OAuth, etc.)
-│       ├── core/        # Core Infrastructure (Security, Config, DB init)
-│       ├── models/      # Data Models (SQLAlchemy ORM)
-│       ├── repositories/# Data Access Layer (Postgres, Mongo)
-│       ├── schemas/     # Pydantic Models (Request/Response)
-│       ├── services/    # Business Logic (Auth, Email, Roles, Tenants)
-│       └── main.py      # Application Entrypoint
+│       ├── api/
+│       │   ├── dependencies/    # Dependency Injection (Auth, RBAC, DB)
+│       │   └── v1/             # API v1 Routes
+│       │       ├── me/         # User Context Endpoints (/me)
+│       │       ├── public/     # Public Auth Endpoints (/auth)
+│       │       ├── platform/   # Platform Management (users, tenants, roles, audit)
+│       │       ├── tenants/    # Tenant Management (users, roles, audit)
+│       │       ├── system/     # System Health & Status
+│       │       └── router.py   # API Router Configuration
+│       ├── auth_strategies/    # Auth Strategy implementations (Email, OAuth, etc.)
+│       ├── core/               # Core Infrastructure (Security, Config, DB init)
+│       ├── models/             # Data Models (SQLAlchemy ORM)
+│       ├── repositories/       # Data Access Layer (Postgres, Mongo)
+│       ├── schemas/            # Pydantic Models (Request/Response)
+│       ├── services/           # Business Logic (Auth, Email, Roles, Tenants, Sessions)
+│       └── main.py             # Application Entrypoint
 ├── tests/               # Complete Test Suite
 └── README.md            # Documentation
 ```
@@ -116,14 +124,48 @@ The `require_permission` decorator automatically extracts the `tenant_id` from A
 
 ## API Endpoints (v1 Highlights)
 
-| Method   | Endpoint                          | Description                              |
-|----------|-----------------------------------|------------------------------------------|
-| `POST`   | `/api/v1/platform/auth/login`     | Login with Session Creation              |
-| `POST`   | `/api/v1/platform/auth/logout`    | Global Session Revocation                |
-| `GET`    | `/api/v1/platform/users/me`       | Get Current User Profile                 |
-| `GET`    | `/api/v1/tenants/mgmt/{id}/users` | Manage Tenant Context (Isolated)         |
-| `GET`    | `/api/v1/platform/tenants`        | Platform-wide Administration             |
-| `GET`    | `/api/v1/health`                  | System health (DB/Redis status)          |
+### Public Authentication
+| Method   | Endpoint                              | Description                              |
+|----------|---------------------------------------|------------------------------------------|
+| `POST`   | `/api/v1/auth/register`               | User Registration                        |
+| `POST`   | `/api/v1/auth/login`                  | Login with Session Creation              |
+| `POST`   | `/api/v1/auth/logout`                 | Global Session Revocation                |
+| `POST`   | `/api/v1/auth/refresh`                | Refresh Access Token                     |
+| `POST`   | `/api/v1/auth/reset-password`         | Initiate Password Reset                  |
+| `GET`    | `/api/v1/auth/verify-email`           | Verify Email with Token                  |
+| `POST`   | `/api/v1/auth/verify-phone`           | Verify Phone with OTP                    |
+
+### User Context (Me)
+| Method   | Endpoint                              | Description                              |
+|----------|---------------------------------------|------------------------------------------|
+| `GET`    | `/api/v1/me`                          | Get Current User Profile                 |
+| `GET`    | `/api/v1/me/tenants`                  | List User's Tenants                      |
+| `GET`    | `/api/v1/me/tenants/{tenant_id}/permissions` | Get User Permissions in Tenant    |
+
+### Platform Management
+| Method   | Endpoint                              | Description                              |
+|----------|---------------------------------------|------------------------------------------|
+| `GET`    | `/api/v1/platform/users`              | List All Users (Platform)                |
+| `GET`    | `/api/v1/platform/users/{user_id}`    | Get User Details                         |
+| `GET`    | `/api/v1/platform/tenants`            | List All Tenants                         |
+| `POST`   | `/api/v1/platform/tenants`            | Create Tenant                            |
+| `GET`    | `/api/v1/platform/tenants/{tenant_id}`| Get Tenant Details                       |
+| `GET`    | `/api/v1/platform/roles`              | List Platform Roles                      |
+| `GET`    | `/api/v1/platform/audit-logs`         | Platform Audit Logs                      |
+
+### Tenant Management
+| Method   | Endpoint                              | Description                              |
+|----------|---------------------------------------|------------------------------------------|
+| `GET`    | `/api/v1/tenants/{tenant_id}/users`   | List Tenant Users                        |
+| `POST`   | `/api/v1/tenants/{tenant_id}/users`   | Add User to Tenant                       |
+| `GET`    | `/api/v1/tenants/{tenant_id}/roles`   | List Tenant Roles                        |
+| `POST`   | `/api/v1/tenants/{tenant_id}/roles`   | Create Tenant Role                       |
+| `GET`    | `/api/v1/tenants/{tenant_id}/audit-logs` | Tenant Audit Logs                    |
+
+### System
+| Method   | Endpoint                              | Description                              |
+|----------|---------------------------------------|------------------------------------------|
+| `GET`    | `/api/v1/health`                      | System health (DB/Redis status)          |
 
 ## Testing
 

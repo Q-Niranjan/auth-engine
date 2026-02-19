@@ -25,5 +25,5 @@ class RoleORM(Base):
     level: Mapped[int] = mapped_column(nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    permissions = relationship("RolePermissionORM", back_populates="role")
+    permissions = relationship("RolePermissionORM", back_populates="role", lazy="selectin")
     users = relationship("UserRoleORM", back_populates="role")

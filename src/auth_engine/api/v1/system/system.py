@@ -1,8 +1,10 @@
 from fastapi import APIRouter
+
 from auth_engine.core.config import settings
 from auth_engine.core.health import check_mongodb, check_postgres, check_redis
 
 router = APIRouter()
+
 
 @router.get("/", response_model=dict[str, str])
 async def root() -> dict[str, str]:
@@ -12,6 +14,7 @@ async def root() -> dict[str, str]:
         "description": settings.APP_DESCRIPTION,
         "docs": "/docs",
     }
+
 
 @router.get("/health")
 async def health_check() -> dict[str, str]:

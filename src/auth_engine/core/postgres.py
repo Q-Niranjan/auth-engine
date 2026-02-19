@@ -25,6 +25,11 @@ class Base(DeclarativeBase):
     pass
 
 
+async def init_db() -> None:
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
 async def get_db() -> AsyncSession:  # type: ignore[misc]
     async with AsyncSessionLocal() as session:
         try:

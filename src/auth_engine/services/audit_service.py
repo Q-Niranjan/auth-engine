@@ -1,10 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel, Field
+from typing import Any
 
-from auth_engine.core.mongodb import mongo_db
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 
 class AuditService:
@@ -14,15 +12,15 @@ class AuditService:
     async def log(
         self,
         *,
-        actor_id: Optional[uuid.UUID] = None,
+        actor_id: uuid.UUID | None = None,
         action: str,
         resource: str,
-        resource_id: Optional[str] = None,
-        tenant_id: Optional[str] = None,
-        target_user_id: Optional[uuid.UUID] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
+        resource_id: str | None = None,
+        tenant_id: str | None = None,
+        target_user_id: uuid.UUID | None = None,
+        metadata: dict[str, Any] | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
         status: str = "success",
     ) -> None:
         try:

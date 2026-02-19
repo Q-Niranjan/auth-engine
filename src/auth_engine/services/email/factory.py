@@ -1,10 +1,12 @@
 import logging
+
 from auth_engine.models.email_config import EmailProviderType
 from auth_engine.services.email.base import EmailProvider, EmailProviderConfig
 from auth_engine.services.email.providers.console import ConsoleEmailProvider
 from auth_engine.services.email.providers.sendgrid import SendGridEmailProvider
 
 logger = logging.getLogger(__name__)
+
 
 class EmailServiceFactory:
     @staticmethod

@@ -1,5 +1,6 @@
 import logging
 import uuid
+
 from auth_engine.core.config import settings
 from auth_engine.core.security import security
 from auth_engine.repositories.email_config_repo import TenantEmailConfigRepository
@@ -7,6 +8,7 @@ from auth_engine.services.email.base import EmailProvider, EmailProviderConfig
 from auth_engine.services.email.factory import EmailServiceFactory
 
 logger = logging.getLogger(__name__)
+
 
 class EmailServiceResolver:
     def __init__(self, repository: TenantEmailConfigRepository):

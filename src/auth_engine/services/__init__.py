@@ -1,3 +1,1 @@
-from .auth_service import AuthService
-
-__all__ = ["AuthService"]
+# Avoid eager imports to prevent circular dependencies

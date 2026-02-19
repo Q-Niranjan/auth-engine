@@ -18,4 +18,4 @@ class RolePermissionORM(Base):
     )
 
     role = relationship("RoleORM", back_populates="permissions")
-    permission = relationship("PermissionORM", back_populates="roles")
+    permission = relationship("PermissionORM", back_populates="roles", lazy="selectin")

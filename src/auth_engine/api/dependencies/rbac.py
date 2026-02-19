@@ -2,7 +2,7 @@ import uuid
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.auth_deps import get_current_user
@@ -21,10 +21,13 @@ def require_permission(
     """
 
     async def checker(
+        request: Request,
         current_user: UserORM = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
-        tenant_id: str | None = None,  # This will pick up "tenant_id" from path if it exists
     ) -> UserORM:
+        # Extract tenant_id from path parameters if it exists
+        tenant_id = request.path_params.get("tenant_id")
+
         t_id = None
         if tenant_id:
             try:
@@ -39,6 +42,65 @@ def require_permission(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions",
+        )
+
+    return checker
+
+
+def check_platform_permission(*permissions: str) -> Callable[..., Coroutine[Any, Any, UserORM]]:
+    """
+    Dependency to check if the user has specific platform-level permissions.
+    """
+
+    async def checker(
+        current_user: UserORM = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> UserORM:
+        for perm in permissions:
+            if await PermissionService.has_permission(db, current_user, perm, None):
+                return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Missing platform permission: {', '.join(permissions)}",
+        )
+
+    return checker
+
+
+def check_tenant_permission(*permissions: str) -> Callable[..., Coroutine[Any, Any, UserORM]]:
+    """
+    Dependency to check if the user has specific permissions within a tenant.
+    Assumes 'tenant_id' is present in the path parameters.
+    """
+
+    async def checker(
+        request: Request,
+        current_user: UserORM = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> UserORM:
+        tenant_id_str = request.path_params.get("tenant_id")
+        if not tenant_id_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tenant ID missing in path",
+            )
+
+        try:
+            tenant_id = uuid.UUID(tenant_id_str)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid tenant ID format",
+            ) from e
+
+        for perm in permissions:
+            if await PermissionService.has_permission(db, current_user, perm, tenant_id):
+                return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Missing tenant permission: {', '.join(permissions)}",
         )
 
     return checker

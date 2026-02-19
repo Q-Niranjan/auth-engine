@@ -10,7 +10,7 @@ from auth_engine.api.v1.router import api_router
 from auth_engine.core.bootstrap import seed_super_admin
 from auth_engine.core.config import settings
 from auth_engine.core.mongodb import close_mongo, init_mongo, mongo_db
-from auth_engine.core.postgres import AsyncSessionLocal
+from auth_engine.core.postgres import AsyncSessionLocal, init_db
 from auth_engine.core.rbac_seed import seed_roles
 from auth_engine.core.redis import redis_client
 
@@ -30,6 +30,7 @@ logging.getLogger("motor").setLevel(logging.WARNING)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting up AuthEngine...")
 
+    await init_db()
     await init_mongo()
     await redis_client.connect()
 

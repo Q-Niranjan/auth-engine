@@ -14,4 +14,4 @@ class UserRoleORM(Base):
 
     user = relationship("UserORM", back_populates="roles")
     role = relationship("RoleORM", back_populates="users", lazy="selectin")
-    tenant = relationship("TenantORM", back_populates="users")
+    tenant = relationship("TenantORM", back_populates="users", lazy="selectin")

@@ -1,87 +1,64 @@
 import uuid
 
-import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from auth_engine.api.dependencies.auth_deps import get_current_active_user
-from auth_engine.api.dependencies.deps import get_db
-from auth_engine.api.dependencies.rbac import require_permission
-from auth_engine.core.redis import get_redis
+from auth_engine.api.dependencies.deps import get_audit_service, get_db
+from auth_engine.api.dependencies.rbac import check_platform_permission
 from auth_engine.models import UserORM, UserRoleORM
 from auth_engine.repositories.user_repo import UserRepository
-from auth_engine.schemas.user import UserResponse, UserSession
-from auth_engine.services.session_service import SessionService
+from auth_engine.schemas.user import UserResponse, UserStatusUpdate
+from auth_engine.services.audit_service import AuditService
 from auth_engine.services.user_service import UserService
 
 router = APIRouter()
 
 
-@router.get("/me", response_model=UserResponse)
-async def get_current_user_info(
-    current_user: UserORM = Depends(get_current_active_user),
-) -> UserORM:
-    """
-    Get current authenticated user information.
-    """
-    return current_user
-
-
-@router.get("/me/sessions", response_model=list[UserSession])
-async def get_my_sessions(
-    current_user: UserORM = Depends(get_current_active_user),
-    redis_conn: redis.Redis = Depends(get_redis),
-) -> list[UserSession]:
-    """
-    List all active sessions for the current user.
-    """
-    session_service = SessionService(redis_conn)
-    return await session_service.list_sessions(current_user.id)
-
-
-@router.delete("/me/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_my_session(
-    session_id: str,
-    current_user: UserORM = Depends(get_current_active_user),
-    redis_conn: redis.Redis = Depends(get_redis),
-) -> None:
-    """
-    Revoke a specific session for the current user.
-    """
-    session_service = SessionService(redis_conn)
-    success = await session_service.delete_session(current_user.id, session_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-
-# --- Platform Admin Endpoints ---
-
-
-@router.get("", response_model=list[UserResponse])
+@router.get("/", response_model=list[UserResponse])
 async def list_all_users(
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(require_permission("platform.users.view")),
-) -> list[UserORM]:
+    current_user: UserORM = Depends(check_platform_permission("platform.users.manage")),
+) -> list[UserResponse]:
     """
     List all users globally across the platform.
-    Requires platform admin privileges.
     """
     query = select(UserORM).options(joinedload(UserORM.roles).joinedload(UserRoleORM.role))
     result = await db.execute(query)
-    return list(result.unique().scalars().all())
+    users = list(result.unique().scalars().all())
+    return [UserResponse.model_validate(u) for u in users]
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserORM = Depends(check_platform_permission("platform.users.manage")),
+) -> UserResponse:
+    """
+    Get a specific user's details.
+    """
+    query = (
+        select(UserORM)
+        .where(UserORM.id == user_id)
+        .options(joinedload(UserORM.roles).joinedload(UserRoleORM.role))
+    )
+    result = await db.execute(query)
+    user = result.unique().scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserResponse.model_validate(user)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_global_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UserORM = Depends(require_permission("platform.users.manage")),
+    current_user: UserORM = Depends(check_platform_permission("platform.users.manage")),
 ) -> None:
     """
     Delete a user globally from the platform.
-    Only SUPER_ADMIN can perform this action.
     """
     user_repo = UserRepository(db)
     user_service = UserService(user_repo)
@@ -93,3 +70,28 @@ async def delete_global_user(
 
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+
+@router.patch("/{user_id}", response_model=UserResponse)
+async def update_user_status(
+    user_id: uuid.UUID,
+    status_update: UserStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    audit_service: AuditService = Depends(get_audit_service),
+    current_user: UserORM = Depends(check_platform_permission("platform.users.manage")),
+) -> UserResponse:
+    """
+    Suspend / activate user.
+    """
+    user_repo = UserRepository(db)
+    user_service = UserService(user_repo, audit_service=audit_service)
+
+    try:
+        user = await user_service.update_user_status(
+            user_id=user_id, status=status_update.status, actor=current_user
+        )
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return UserResponse.model_validate(user)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e

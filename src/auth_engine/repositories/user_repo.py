@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -9,6 +11,20 @@ from auth_engine.repositories.postgres_repo import PostgresRepository
 class UserRepository(PostgresRepository[UserORM]):
     def __init__(self, session: AsyncSession):
         super().__init__(UserORM, session)
+
+    async def get(self, id: uuid.UUID) -> UserORM | None:
+        query = (
+            select(self.model)
+            .where(self.model.id == id)
+            .options(
+                joinedload(UserORM.roles)
+                .joinedload(UserRoleORM.role)
+                .joinedload(RoleORM.permissions)
+                .joinedload(RolePermissionORM.permission)
+            )
+        )
+        result = await self.session.execute(query)
+        return result.unique().scalar_one_or_none()
 
     async def get_by_email(self, email: str) -> UserORM | None:
         query = (

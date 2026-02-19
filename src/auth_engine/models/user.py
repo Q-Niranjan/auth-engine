@@ -27,8 +27,10 @@ class UserORM(Base):
     avatar_url = Column(String(500), nullable=True)
 
     # Status
-    status: Column[UserStatus] = Column(
-        SQLEnum(UserStatus), default=UserStatus.PENDING_VERIFICATION, nullable=False
+    status: Mapped[UserStatus] = mapped_column(
+        SQLEnum(UserStatus),
+        default=UserStatus.PENDING_VERIFICATION,
+        nullable=False,
     )
     is_email_verified = Column(Boolean, default=False, nullable=False)
     is_phone_verified = Column(Boolean, default=False, nullable=False)
@@ -45,4 +47,6 @@ class UserORM(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime, nullable=True)
 
-    roles = relationship("UserRoleORM", back_populates="user", lazy="selectin")
+    roles = relationship(
+        "UserRoleORM", back_populates="user", lazy="selectin", cascade="all, delete-orphan"
+    )

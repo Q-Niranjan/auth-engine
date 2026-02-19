@@ -1,6 +1,6 @@
 from sqlalchemy import text
 
-from auth_engine.core.mongodb import mongo_client
+import auth_engine.core.mongodb as mongodb
 from auth_engine.core.postgres import AsyncSessionLocal
 from auth_engine.core.redis import redis_client
 
@@ -11,10 +11,12 @@ async def check_postgres() -> None:
 
 
 async def check_mongodb() -> None:
-    if mongo_client:
-        await mongo_client.admin.command("ping")
+    if not mongodb.mongo_client:
+        raise RuntimeError("MongoDB client is not initialized")
+    await mongodb.mongo_client.admin.command("ping")
 
 
 async def check_redis() -> None:
-    if redis_client.client:
-        await redis_client.client.ping()
+    if not redis_client.client:
+        raise RuntimeError("Redis client is not initialized")
+    await redis_client.client.ping()

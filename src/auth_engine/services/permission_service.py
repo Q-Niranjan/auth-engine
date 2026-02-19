@@ -49,7 +49,10 @@ class PermissionService:
             from auth_engine.models.tenant import TenantORM, TenantType
 
             platform_subquery = (
-                select(TenantORM.id).where(TenantORM.type == TenantType.PLATFORM).scalar_subquery()
+                select(TenantORM.id)
+                .where(TenantORM.type == TenantType.PLATFORM)
+                .limit(1)
+                .scalar_subquery()
             )
             query = query.where(UserRoleORM.tenant_id == platform_subquery)
 

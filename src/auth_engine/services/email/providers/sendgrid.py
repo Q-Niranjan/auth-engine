@@ -1,10 +1,12 @@
 import asyncio
 import logging
+
+from auth_engine.services.email.base import EmailProvider, EmailProviderConfig
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
-from auth_engine.services.email.base import EmailProvider, EmailProviderConfig
 
 logger = logging.getLogger(__name__)
+
 
 class SendGridEmailProvider(EmailProvider):
     def __init__(self, config: EmailProviderConfig) -> None:

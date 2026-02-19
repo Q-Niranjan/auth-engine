@@ -61,6 +61,7 @@ async def get_current_user(
             .joinedload(RoleORM.permissions)
             .joinedload(RolePermissionORM.permission)
         )
+        .options(joinedload(UserORM.roles).joinedload(UserRoleORM.tenant))
     )
     result = await db.execute(query)
     user = result.unique().scalar_one_or_none()
@@ -98,10 +99,10 @@ async def get_current_active_superadmin(
     """
     is_super_admin = False
     for user_role in current_user.roles:
-         if user_role.role.name == "SUPER_ADMIN":
-             is_super_admin = True
-             break
-    
+        if user_role.role.name == "SUPER_ADMIN":
+            is_super_admin = True
+            break
+
     if not is_super_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"

@@ -2,6 +2,7 @@
 import uuid
 from typing import Any
 
+from auth_engine.auth_strategies.base import PasswordBasedStrategy
 from auth_engine.core.config import settings
 from auth_engine.core.exceptions import (
     InvalidCredentialsError,
@@ -10,7 +11,6 @@ from auth_engine.core.exceptions import (
     WeakPasswordError,
 )
 from auth_engine.core.security import security, token_manager
-from auth_engine.auth_strategies.base import PasswordBasedStrategy
 
 
 class EmailPasswordStrategy(PasswordBasedStrategy):

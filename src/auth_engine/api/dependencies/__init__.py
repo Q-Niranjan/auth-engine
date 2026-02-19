@@ -1,1 +1,1 @@
-from . import auth_deps, deps, rbac
+# Avoid eager imports to prevent circular dependencies

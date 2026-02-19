@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+
 @dataclass
 class EmailProviderConfig:
     provider_type: str
     api_key: str
     from_email: str
     is_active: bool
+
 
 class EmailProvider(ABC):
     """Abstract base class for email providers."""
