@@ -77,6 +77,7 @@ class UserResponse(UserBase):
     status: UserStatus
     is_email_verified: bool
     is_phone_verified: bool
+    mfa_enabled: bool = False
     auth_strategies: list[str] | None = None
     avatar_url: str | None = None
     created_at: datetime

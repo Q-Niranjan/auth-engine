@@ -42,3 +42,7 @@ MAGIC_LINK_PREFIX = "magic:jti:"
 
 # TTL for the magic link JWT
 MAGIC_LINK_TTL_SECONDS = 15 * 60  # 15 minutes
+
+# MFA / TOTP
+MFA_PENDING_PREFIX = "mfa:pending:"
+MFA_PENDING_TTL_SECONDS = 300  # 5 minutes to complete MFA after primary auth

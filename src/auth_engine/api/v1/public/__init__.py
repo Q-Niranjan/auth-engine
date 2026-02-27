@@ -1,3 +1,3 @@
-from . import auth, introspect, magic_link, oauth
+from . import auth, introspect, magic_link, oauth, mfa
 
-__all__ = ["auth", "oauth", "introspect", "magic_link"]
+__all__ = ["auth", "oauth", "introspect", "magic_link", "mfa"]

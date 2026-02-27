@@ -1,3 +1,4 @@
+from typing import Union
 import uuid
 
 import redis.asyncio as redis
@@ -20,11 +21,15 @@ from auth_engine.schemas.user import (
     UserCreate,
     UserLogin,
     UserLoginResponse,
-    UserResponse,
+    UserResponse,  
 )
+from auth_engine.schemas.mfa import MFAChallengeResponse
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.auth_service import AuthService
 from auth_engine.services.session_service import SessionService
+from auth_engine.services.totp_service import TOTPService
+from fastapi.responses import JSONResponse
+
 
 router = APIRouter()
 
@@ -48,7 +53,10 @@ async def register(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
-@router.post("/login", response_model=UserLoginResponse)
+@router.post(
+    "/login",
+    response_model=Union[UserLoginResponse, MFAChallengeResponse],
+)
 async def login(
     request: Request,
     login_data: UserLogin,
@@ -56,7 +64,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
     redis_conn: redis.Redis = Depends(get_redis),
     audit_service: AuditService = Depends(get_audit_service),
-) -> UserLoginResponse:
+) -> Union[UserLoginResponse, MFAChallengeResponse]:
     user_repo = UserRepository(db)
     auth_service = AuthService(user_repo)
     session_service = SessionService(redis_conn)
@@ -64,7 +72,32 @@ async def login(
     try:
         user = await auth_service.authenticate_user(login_data)
 
-        # Create a session
+        if user.mfa_enabled:
+            totp_svc = TOTPService(db, redis_conn)
+            mfa_pending_token = await totp_svc.store_mfa_pending(
+                user_id=str(user.id),
+                session_context={
+                    "ip_address": request.client.host if request.client else "unknown",
+                    "user_agent": request.headers.get("user-agent", "unknown"),
+                },
+            )
+
+            background_tasks.add_task(
+                audit_service.log,
+                action="MFA_CHALLENGE_ISSUED",
+                resource="Auth",
+                resource_id=str(user.id),
+                actor_id=user.id,
+                metadata={"email": user.email},
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            )
+
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content=MFAChallengeResponse(mfa_pending_token=mfa_pending_token).model_dump(),
+            )
+
         session_id = await session_service.create_session(
             user_id=user.id,
             expires_in_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
@@ -74,7 +107,6 @@ async def login(
 
         tokens = auth_service.create_tokens(user, session_id=session_id)
 
-        # Audit Log: Successful Login
         background_tasks.add_task(
             audit_service.log,
             action="LOGIN_SUCCESS",
@@ -93,8 +125,8 @@ async def login(
             expires_in=tokens["expires_in"],
             user=UserResponse.model_validate(tokens["user"]),
         )
+
     except ValueError as e:
-        # Audit Log: Failed Login
         background_tasks.add_task(
             audit_service.log,
             action="LOGIN_FAILED",
@@ -105,7 +137,6 @@ async def login(
             status="failure",
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
-
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
