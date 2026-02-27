@@ -34,7 +34,7 @@ AuthEngine is the authentication and authorization backbone for your platform. I
 | Google OAuth 2.0 | Live | One-click login via Google account |
 | GitHub OAuth 2.0 | Live | One-click login via GitHub account |
 | Microsoft OAuth 2.0 | Live | Personal & Azure AD / work accounts |
-| Magic Links | Next | Passwordless email login |
+| Magic Links | live | Passwordless email login |
 | TOTP / MFA | Next | Google Authenticator / Authy |
 | WebAuthn / Passkeys | Planned | Biometric & hardware key support |
 

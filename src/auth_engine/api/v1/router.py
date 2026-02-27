@@ -10,7 +10,9 @@ api_router.include_router(system.system.router, tags=["system"])
 
 # Authentication (Public)
 api_router.include_router(public.auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(public.magic_link.router, prefix="/auth/magic-link", tags=["auth"])
 api_router.include_router(public.oauth.router, prefix="/auth/oauth", tags=["oauth"])
+
 api_router.include_router(platform.service_api_key.router, prefix="/auth", tags=["auth-introspect"])
 
 

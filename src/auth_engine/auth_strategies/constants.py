@@ -35,3 +35,10 @@ CLAIM_GIVEN_NAME = "given_name"
 CLAIM_FAMILY_NAME = "family_name"
 CLAIM_NAME = "name"
 CLAIM_PICTURE = "picture"
+
+
+# Redis key pattern for one-time-use flags
+MAGIC_LINK_PREFIX = "magic:jti:"
+
+# TTL for the magic link JWT
+MAGIC_LINK_TTL_SECONDS = 15 * 60  # 15 minutes

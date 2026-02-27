@@ -24,6 +24,8 @@ class SMSServiceResolver:
 
     async def resolve(self, tenant_id: uuid.UUID | str) -> SMSProvider:
         if isinstance(tenant_id, str):
+            if tenant_id == "default":
+                return SMSServiceFactory.create(self.default_config)
             try:
                 tenant_id = uuid.UUID(tenant_id)
             except ValueError:
