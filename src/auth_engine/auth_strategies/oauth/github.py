@@ -5,6 +5,13 @@ from typing import Any
 
 import httpx
 
+from auth_engine.auth_strategies.constants import (
+    GITHUB,
+    GITHUB_AUTHORIZATION_URL,
+    GITHUB_EMAILS_URL,
+    GITHUB_TOKEN_URL,
+    GITHUB_USERINFO_URL,
+)
 from auth_engine.auth_strategies.oauth.base_oauth import BaseOAuthStrategy
 from auth_engine.core.exceptions import AuthenticationError
 
@@ -20,15 +27,15 @@ class GitHubOAuthStrategy(BaseOAuthStrategy):
     set to private, so we make a separate call to /user/emails.
     """
 
-    AUTHORIZATION_URL = "https://github.com/login/oauth/authorize"
-    TOKEN_URL = "https://github.com/login/oauth/access_token"
-    USERINFO_URL = "https://api.github.com/user"
-    EMAILS_URL = "https://api.github.com/user/emails"
+    AUTHORIZATION_URL = GITHUB_AUTHORIZATION_URL
+    TOKEN_URL = GITHUB_TOKEN_URL
+    USERINFO_URL = GITHUB_USERINFO_URL
+    EMAILS_URL = GITHUB_EMAILS_URL
     DEFAULT_SCOPES = ["read:user", "user:email"]
 
     def __init__(self, client_id: str, client_secret: str, redirect_uri: str):
         super().__init__(
-            provider_name="github",
+            provider_name=GITHUB,
             client_id=client_id,
             client_secret=client_secret,
             redirect_uri=redirect_uri,

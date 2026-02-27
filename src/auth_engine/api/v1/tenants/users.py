@@ -6,13 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.deps import get_audit_service, get_db
 from auth_engine.api.dependencies.rbac import check_tenant_permission
+from auth_engine.external_services.email.resolver import EmailServiceResolver
 from auth_engine.models import UserORM
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.tenant import TenantInviteRequest
 from auth_engine.schemas.user import UserResponse
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.auth_service import AuthService
-from auth_engine.services.email.resolver import EmailServiceResolver
 from auth_engine.services.role_service import RoleService
 from auth_engine.services.tenant_service import TenantService
 

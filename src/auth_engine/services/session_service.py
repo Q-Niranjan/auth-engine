@@ -64,3 +64,7 @@ class SessionService:
 
     async def is_token_blacklisted(self, jti: str) -> bool:
         return await self.redis.exists(f"blacklist:{jti}") > 0
+
+    async def is_session_active(self, user_id: uuid.UUID | str, session_id: str) -> bool:
+        session_key = f"session:{user_id}:{session_id}"
+        return await self.redis.exists(session_key) > 0

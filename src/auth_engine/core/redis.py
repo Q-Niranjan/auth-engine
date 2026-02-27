@@ -13,7 +13,6 @@ class RedisClient:
     async def connect(self) -> None:
         self.client = redis.from_url(
             str(settings.REDIS_URL),
-            db=settings.REDIS_DB,
             max_connections=settings.REDIS_MAX_CONNECTIONS,
             decode_responses=True,
         )

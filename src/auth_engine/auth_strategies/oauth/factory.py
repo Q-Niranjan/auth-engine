@@ -4,6 +4,7 @@ OAuthProviderFactory — builds the correct strategy instance based on provider 
 Reads credentials from settings so endpoints don't need to know about config.
 """
 
+from auth_engine.auth_strategies.constants import GITHUB, GOOGLE, MICROSOFT
 from auth_engine.auth_strategies.oauth import (
     BaseOAuthStrategy,
     GitHubOAuthStrategy,
@@ -29,7 +30,7 @@ def get_oauth_strategy(provider: str) -> BaseOAuthStrategy:
     """
     provider = provider.lower()
 
-    if provider == "google":
+    if provider == GOOGLE:
         if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
             raise AuthenticationError("Google OAuth is not configured.")
         return GoogleOAuthStrategy(
@@ -38,7 +39,7 @@ def get_oauth_strategy(provider: str) -> BaseOAuthStrategy:
             redirect_uri=settings.GOOGLE_REDIRECT_URI,
         )
 
-    if provider == "github":
+    if provider == GITHUB:
         if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
             raise AuthenticationError("GitHub OAuth is not configured.")
         return GitHubOAuthStrategy(
@@ -47,7 +48,7 @@ def get_oauth_strategy(provider: str) -> BaseOAuthStrategy:
             redirect_uri=settings.GITHUB_REDIRECT_URI,
         )
 
-    if provider == "microsoft":
+    if provider == MICROSOFT:
         if not settings.MICROSOFT_CLIENT_ID or not settings.MICROSOFT_CLIENT_SECRET:
             raise AuthenticationError("Microsoft OAuth is not configured.")
         return MicrosoftOAuthStrategy(
@@ -57,5 +58,6 @@ def get_oauth_strategy(provider: str) -> BaseOAuthStrategy:
         )
 
     raise AuthenticationError(
-        f"Unknown OAuth provider: '{provider}'. " f"Supported providers: google, github, microsoft"
+        f"Unknown OAuth provider: '{provider}'. "
+        f"Supported providers: {GOOGLE}, {GITHUB}, {MICROSOFT}"
     )

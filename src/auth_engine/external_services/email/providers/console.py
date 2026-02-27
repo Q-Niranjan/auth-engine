@@ -1,6 +1,6 @@
 import logging
 
-from auth_engine.services.email.base import EmailProvider
+from auth_engine.external_services.email.base import EmailProvider
 
 logger = logging.getLogger(__name__)
 

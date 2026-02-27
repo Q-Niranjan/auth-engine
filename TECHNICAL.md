@@ -362,6 +362,13 @@ Three cases handled in priority order:
 **Case 2 — Known email, new provider:** User exists by email but hasn't linked this provider yet → create `oauth_accounts` row, append strategy name to `auth_strategies` JSON list, return existing user. This automatically merges accounts for users who registered with email/password then later clicked "Login with Google" using the same address.
 
 **Case 3 — Brand new user:** No user, no OAuth account → create `UserORM` (status=ACTIVE, is_email_verified=True — email is already verified by the provider), create `oauth_accounts` row.
+<truncated 57 bytes>
+### Password Transition for Social Users
+
+OAuth-only users do not have a `password_hash`. 
+
+1. **Forgot Password:** If a social user attempts a password reset, the system rejects it with a specific message directing them to their social provider.
+2. **Set Password:** Authenticated OAuth users can call `POST /auth/set-password` to establish their first password. This appends `email_password` to their `auth_strategies`, allowing them to login via both social and email/password methods in the future.
 
 ---
 
@@ -512,6 +519,10 @@ Used for:
 | `GOOGLE_CLIENT_ID` | — | `""` | Leave empty to disable Google OAuth |
 | `GOOGLE_CLIENT_SECRET` | — | `""` | |
 | `GOOGLE_REDIRECT_URI` | — | localhost callback | |
+| `SMS_PROVIDER` | — | `"twilio"` | |
+| `SMS_PROVIDER_API_KEY` | — | `""` | |
+| `SMS_PROVIDER_ACCOUNT_SID`| — | `""` | |
+| `SMS_SENDER` | — | `"+1234567890"` | |
 | `GITHUB_CLIENT_ID` | — | `""` | Leave empty to disable GitHub OAuth |
 | `GITHUB_CLIENT_SECRET` | — | `""` | |
 | `MICROSOFT_CLIENT_ID` | — | `""` | Leave empty to disable Microsoft OAuth |
@@ -575,17 +586,26 @@ All services (app + postgres + mongo + redis) start with health checks. The app 
 
 ## Extension Guide
 
-### Adding a New OAuth Provider
+1. Add provider identifier and URLs to `src/auth_engine/auth_strategies/constants.py`:
 
-1. Create `src/auth_engine/auth_strategies/oauth/yourprovider.py`:
+```python
+YOU_AUTHORIZATION_URL = "..."
+YOU_TOKEN_URL = "..."
+YOU_USERINFO_URL = "..."
+```
+
+2. Create `src/auth_engine/auth_strategies/oauth/yourprovider.py`:
 
 ```python
 from auth_engine.auth_strategies.oauth.base_oauth import BaseOAuthStrategy
+from auth_engine.auth_strategies.constants import (
+    YOU_AUTHORIZATION_URL, YOU_TOKEN_URL, YOU_USERINFO_URL
+)
 
 class YourProviderStrategy(BaseOAuthStrategy):
-    AUTHORIZATION_URL = "https://provider.com/oauth/authorize"
-    TOKEN_URL = "https://provider.com/oauth/token"
-    USERINFO_URL = "https://api.provider.com/user"
+    AUTHORIZATION_URL = YOU_AUTHORIZATION_URL
+    TOKEN_URL = YOU_TOKEN_URL
+    USERINFO_URL = YOU_USERINFO_URL
     DEFAULT_SCOPES = ["read:user", "email"]
 
     def __init__(self, client_id, client_secret, redirect_uri):
@@ -602,7 +622,7 @@ class YourProviderStrategy(BaseOAuthStrategy):
         }
 ```
 
-2. Register in `factory.py`:
+3. Register in `factory.py`:
 
 ```python
 if provider == "yourprovider":
@@ -613,8 +633,7 @@ if provider == "yourprovider":
     )
 ```
 
-3. Add config fields to `core/config.py` and `.env.example`.
-4. Add `"yourprovider"` to `SUPPORTED_PROVIDERS` in `api/v1/public/oauth.py`.
+4. Add config fields to `core/config.py` and `.env.example`.
 
 ### Adding a New Auth Strategy
 

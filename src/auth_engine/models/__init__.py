@@ -4,6 +4,7 @@ from .permission import PermissionORM
 from .role import RoleORM
 from .role_permission import RolePermissionORM
 from .service_api_key import ServiceApiKeyORM
+from .sms_config import TenantSMSConfigORM
 from .tenant import TenantORM
 from .user import UserORM
 from .user_role import UserRoleORM
@@ -16,6 +17,7 @@ __all__ = [
     "RolePermissionORM",
     "UserRoleORM",
     "TenantEmailConfigORM",
+    "TenantSMSConfigORM",
     "OAuthAccountORM",
     "ServiceApiKeyORM",
 ]

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 from sqlalchemy import DateTime, String
@@ -23,7 +23,9 @@ class RoleORM(Base):
     description: Mapped[str | None] = mapped_column(String(255))
     scope: Mapped[RoleScope] = mapped_column(SAEnum(RoleScope, name="rolescope"), nullable=False)
     level: Mapped[int] = mapped_column(nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
     permissions = relationship("RolePermissionORM", back_populates="role", lazy="selectin")
     users = relationship("UserRoleORM", back_populates="role")

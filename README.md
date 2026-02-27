@@ -192,7 +192,10 @@ MICROSOFT_CLIENT_SECRET=
 | `POST` | `/auth/login` | Login, returns access + refresh tokens |
 | `POST` | `/auth/logout` | Revoke session |
 | `POST` | `/auth/refresh` | Get new access token using refresh token |
-| `POST` | `/auth/reset-password` | Initiate password reset |
+| `POST` | `/auth/password-reset/request` | Initiate password reset |
+| `GET`  | `/auth/password-reset/confirm` | Validate reset token |
+| `POST` | `/auth/password-reset/confirm` | Confirm/Update password |
+| `POST` | `/auth/set-password` | Set password (for OAuth users with no password) |
 | `GET`  | `/auth/verify-email` | Verify email with token |
 | `POST` | `/auth/verify-phone` | Verify phone with OTP |
 | `POST` | `/auth/request-token` | Request a specific action token |

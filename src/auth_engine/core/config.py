@@ -1,6 +1,4 @@
-from typing import Any
-
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -73,38 +71,26 @@ class Settings(BaseSettings):
     )
     EMAIL_SENDER: str = Field(default="noreply@authengine.com", description="Default email sender")
 
-    # CORS
-    CORS_ORIGINS: str | list[str] = ["http://localhost:3000", "http://localhost:8000"]
-    CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: str | list[str] = ["*"]
-    CORS_ALLOW_HEADERS: str | list[str] = ["*"]
+    # SMS Settings
+    SMS_PROVIDER: str = "twilio"
+    SMS_PROVIDER_API_KEY: str = Field(
+        default="", description="API Key or Secret for the configured SMS provider"
+    )
+    SMS_PROVIDER_ACCOUNT_SID: str = Field(default="", description="Account SID for Twilio if used")
+    SMS_SENDER: str = Field(default="+1234567890", description="Default SMS sender number")
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v: Any) -> Any:
-        if isinstance(v, str):
-            if v.startswith("[") and v.endswith("]"):
-                try:
-                    import json
+    # OAuth Settings
+    GOOGLE_CLIENT_ID: str = Field(default="", description="Google OAuth Client ID")
+    GOOGLE_CLIENT_SECRET: str = Field(default="", description="Google OAuth Client Secret")
+    GOOGLE_REDIRECT_URI: str = Field(default="", description="Google OAuth Redirect URI")
 
-                    return json.loads(v)
-                except Exception:
-                    pass
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+    GITHUB_CLIENT_ID: str = Field(default="", description="GitHub OAuth Client ID")
+    GITHUB_CLIENT_SECRET: str = Field(default="", description="GitHub OAuth Client Secret")
+    GITHUB_REDIRECT_URI: str = Field(default="", description="GitHub OAuth Redirect URI")
 
-    @field_validator("CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before")
-    @classmethod
-    def parse_lists(cls, v: Any) -> Any:
-        if isinstance(v, str):
-            return [item.strip() for item in v.split(",") if item.strip()]
-        return v
+    MICROSOFT_CLIENT_ID: str = Field(default="", description="Microsoft OAuth Client ID")
+    MICROSOFT_CLIENT_SECRET: str = Field(default="", description="Microsoft OAuth Client Secret")
+    MICROSOFT_REDIRECT_URI: str = Field(default="", description="Microsoft OAuth Redirect URI")
 
 
-# Global settings instance
-try:
-    settings = Settings()
-except Exception as e:
-    # Fallback or re-raise with more info if needed during debugging
-    print(f"Error loading settings: {e}")
-    raise e
+settings = Settings()

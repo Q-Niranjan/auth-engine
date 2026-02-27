@@ -18,6 +18,7 @@ from typing import Any
 
 import redis.asyncio as aioredis
 
+from auth_engine.auth_strategies.constants import OAUTH_STATE_PREFIX, OAUTH_STATE_TTL_SECONDS
 from auth_engine.core.config import settings
 from auth_engine.core.exceptions import AuthenticationError
 from auth_engine.core.security import token_manager
@@ -28,10 +29,6 @@ from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.user import UserStatus
 
 logger = logging.getLogger(__name__)
-
-# Redis key prefix for OAuth state tokens
-_STATE_PREFIX = "oauth:state:"
-_STATE_TTL_SECONDS = 600  # 10 minutes — more than enough for a login flow
 
 
 class OAuthService:
@@ -63,9 +60,9 @@ class OAuthService:
         raw_state = secrets.token_urlsafe(32)
 
         # Store in Redis with TTL
-        redis_key = f"{_STATE_PREFIX}{raw_state}"
+        redis_key = f"{OAUTH_STATE_PREFIX}{raw_state}"
         value = tenant_id or "none"
-        await self.redis.setex(redis_key, _STATE_TTL_SECONDS, value)
+        await self.redis.setex(redis_key, OAUTH_STATE_TTL_SECONDS, value)
 
         return raw_state
 
@@ -83,7 +80,7 @@ class OAuthService:
         parts = state.split(":", 1)
         raw_state = parts[0]
 
-        redis_key = f"{_STATE_PREFIX}{raw_state}"
+        redis_key = f"{OAUTH_STATE_PREFIX}{raw_state}"
         stored_value = await self.redis.get(redis_key)
 
         if not stored_value:

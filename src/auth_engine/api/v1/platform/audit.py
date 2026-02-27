@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from auth_engine.api.dependencies.deps import get_audit_service
 from auth_engine.api.dependencies.rbac import check_platform_permission
@@ -47,8 +47,6 @@ async def get_platform_audit_logs(
         logs = await cursor.to_list(length=limit)
         return logs
     except Exception as e:
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving audit logs: {str(e)}",
@@ -84,8 +82,8 @@ async def get_tenant_audit_logs(
 
     # Build base query for tenant-specific and platform-level actions affecting this tenant
     or_conditions: list[dict[str, str | None]] = [
-        {"tenant_id": tenant_id_str},  # Tenant-scoped actions
-        {"tenant_id": None, "resource_id": tenant_id_str},  # Platform actions affecting this tenant
+        {"tenant_id": tenant_id_str},
+        {"tenant_id": None, "resource_id": tenant_id_str},
     ]
 
     # Apply additional filters to both OR conditions
@@ -103,8 +101,6 @@ async def get_tenant_audit_logs(
         logs = await cursor.to_list(length=limit)
         return logs
     except Exception as e:
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving audit logs: {str(e)}",

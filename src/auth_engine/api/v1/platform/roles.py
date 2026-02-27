@@ -43,7 +43,6 @@ async def assign_role_to_user(
     """
     Assign a platform-level role (SUPER_ADMIN or PLATFORM_ADMIN) to a user.
     """
-    # 1. Find the Platform Tenant
     platform_query = select(TenantORM.id).where(TenantORM.type == TenantType.PLATFORM).limit(1)
     platform_result = await db.execute(platform_query)
     platform_id = platform_result.scalar()
@@ -77,7 +76,6 @@ async def remove_role_from_user(
     """
     Remove a platform-level role from a user.
     """
-    # 1. Find the Platform Tenant
     platform_query = select(TenantORM.id).where(TenantORM.type == TenantType.PLATFORM).limit(1)
     platform_result = await db.execute(platform_query)
     platform_id = platform_result.scalar()

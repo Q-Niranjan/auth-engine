@@ -12,7 +12,9 @@ from auth_engine.core.redis import get_redis
 from auth_engine.models import UserORM
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.user import (
-    PasswordReset,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    SetPassword,
     TokenRefresh,
     TokenRequest,
     UserCreate,
@@ -147,7 +149,6 @@ async def refresh_token(
 
     try:
         tokens = await auth_service.refresh_tokens(refresh_data.refresh_token)
-        # Assuming create_tokens returns a dict compatible with UserLoginResponse
         return UserLoginResponse(
             access_token=tokens["access_token"],
             refresh_token=tokens["refresh_token"],
@@ -159,9 +160,9 @@ async def refresh_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
 
 
-@router.post("/reset-password", status_code=status.HTTP_202_ACCEPTED)
-async def reset_password(
-    reset_data: PasswordReset,
+@router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)
+async def request_password_reset(
+    reset_data: PasswordResetRequest,
     db: AsyncSession = Depends(get_db),
     redis_conn: redis.Redis = Depends(get_redis),
 ) -> dict[str, str]:
@@ -170,6 +171,69 @@ async def reset_password(
     auth_service = AuthService(user_repo, session_service=session_service)
     await auth_service.initiate_password_reset(reset_data.email, reset_data.tenant_id)
     return {"message": "If the email exists, a reset link will be sent."}
+
+
+@router.get("/password-reset/confirm", status_code=status.HTTP_200_OK)
+async def validate_password_reset(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    user_repo = UserRepository(db)
+    auth_service = AuthService(user_repo)
+    try:
+        await auth_service.validate_password_reset_token(token)
+        return {"message": "Token is valid. Please POST your new password to confirm the reset."}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_200_OK)
+async def confirm_password_reset(
+    confirm_data: PasswordResetConfirm,
+    db: AsyncSession = Depends(get_db),
+    redis_conn: redis.Redis = Depends(get_redis),
+) -> dict[str, str]:
+    if confirm_data.new_password != confirm_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match"
+        )
+
+    user_repo = UserRepository(db)
+    session_service = SessionService(redis_conn)
+    auth_service = AuthService(user_repo, session_service=session_service)
+    try:
+        await auth_service.confirm_password_reset(confirm_data.token, confirm_data.new_password)
+        return {"message": "Password reset successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+
+@router.post("/set-password", status_code=status.HTTP_200_OK)
+async def set_password(
+    password_data: SetPassword,
+    current_user: UserORM = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+    redis_conn: redis.Redis = Depends(get_redis),
+) -> dict[str, str]:
+    """
+    Allow an authenticated OAuth user with no password to set their first password.
+    """
+    if password_data.new_password != password_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match"
+        )
+
+    user_repo = UserRepository(db)
+    session_service = SessionService(redis_conn)
+    auth_service = AuthService(user_repo, session_service=session_service)
+
+    try:
+        await auth_service.set_password_for_oauth_user(current_user, password_data.new_password)
+        return {
+            "message": "Password set successfully. You can now login with your email and password."
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/verify-email")

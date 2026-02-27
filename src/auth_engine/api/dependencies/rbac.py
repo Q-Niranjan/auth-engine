@@ -25,7 +25,6 @@ def require_permission(
         current_user: UserORM = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ) -> UserORM:
-        # Extract tenant_id from path parameters if it exists
         tenant_id = request.path_params.get("tenant_id")
 
         t_id = None

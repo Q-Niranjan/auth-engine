@@ -11,7 +11,6 @@ from passlib.context import CryptContext
 
 from auth_engine.core import settings
 
-# Password hashing context - using Argon2 for modern security
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 
@@ -98,9 +97,10 @@ class TokenManager:
                 "iat": datetime.utcnow(),
                 "iss": settings.JWT_ISSUER,
                 "aud": settings.JWT_AUDIENCE,
-                "type": "access",
             }
         )
+        if "type" not in to_encode:
+            to_encode["type"] = "access"
 
         encoded_jwt = jwt.encode(
             to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
@@ -122,9 +122,10 @@ class TokenManager:
                 "iat": datetime.utcnow(),
                 "iss": settings.JWT_ISSUER,
                 "aud": settings.JWT_AUDIENCE,
-                "type": "refresh",
             }
         )
+        if "type" not in to_encode:
+            to_encode["type"] = "refresh"
 
         encoded_jwt = jwt.encode(
             to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
@@ -167,3 +168,4 @@ class TokenManager:
 # Export instances
 security = SecurityUtils()
 token_manager = TokenManager()
+pwd_context = pwd_context

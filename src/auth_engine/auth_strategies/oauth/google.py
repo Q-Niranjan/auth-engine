@@ -2,6 +2,17 @@
 
 from typing import Any
 
+from auth_engine.auth_strategies.constants import (
+    CLAIM_EMAIL,
+    CLAIM_FAMILY_NAME,
+    CLAIM_GIVEN_NAME,
+    CLAIM_NAME,
+    CLAIM_PICTURE,
+    CLAIM_SUB,
+    GOOGLE_AUTHORIZATION_URL,
+    GOOGLE_TOKEN_URL,
+    GOOGLE_USERINFO_URL,
+)
 from auth_engine.auth_strategies.oauth.base_oauth import BaseOAuthStrategy
 
 
@@ -15,9 +26,9 @@ class GoogleOAuthStrategy(BaseOAuthStrategy):
         profile — name, picture, locale
     """
 
-    AUTHORIZATION_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-    TOKEN_URL = "https://oauth2.googleapis.com/token"
-    USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+    AUTHORIZATION_URL = GOOGLE_AUTHORIZATION_URL
+    TOKEN_URL = GOOGLE_TOKEN_URL
+    USERINFO_URL = GOOGLE_USERINFO_URL
     DEFAULT_SCOPES = ["openid", "email", "profile"]
 
     def __init__(self, client_id: str, client_secret: str, redirect_uri: str):
@@ -40,10 +51,10 @@ class GoogleOAuthStrategy(BaseOAuthStrategy):
             name     → full display name
         """
         return {
-            "provider_user_id": str(raw_profile["sub"]),
-            "email": raw_profile["email"],
-            "first_name": raw_profile.get("given_name"),
-            "last_name": raw_profile.get("family_name"),
-            "avatar_url": raw_profile.get("picture"),
-            "provider_name": raw_profile.get("name"),
+            "provider_user_id": str(raw_profile[CLAIM_SUB]),
+            "email": raw_profile[CLAIM_EMAIL],
+            "first_name": raw_profile.get(CLAIM_GIVEN_NAME),
+            "last_name": raw_profile.get(CLAIM_FAMILY_NAME),
+            "avatar_url": raw_profile.get(CLAIM_PICTURE),
+            "provider_name": raw_profile.get(CLAIM_NAME),
         }

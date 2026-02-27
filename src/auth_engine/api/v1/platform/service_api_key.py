@@ -44,7 +44,7 @@ async def create_service_key(
     """
     # Generate raw key
     raw_key = f"ae_sk_{secrets.token_hex(32)}"
-    key_prefix = raw_key[:12] + "..."  # e.g. "ae_sk_a1b2c3..."
+    key_prefix = raw_key[:12] + "..."
     key_hash = _hash_key(raw_key)
 
     repo = ServiceApiKeyRepository(db)
@@ -76,7 +76,7 @@ async def create_service_key(
         tenant_id=api_key.tenant_id,
         expires_at=api_key.expires_at,
         created_at=api_key.created_at,
-        raw_key=raw_key,  # shown ONCE — never stored
+        raw_key=raw_key,
     )
 
 

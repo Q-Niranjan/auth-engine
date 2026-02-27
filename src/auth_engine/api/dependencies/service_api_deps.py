@@ -9,7 +9,6 @@ from auth_engine.repositories.service_api_key_repo import ServiceApiKeyRepositor
 
 
 def _hash_key(raw_key: str) -> str:
-    """SHA-256 hash of the raw API key — what we store in DB."""
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
@@ -32,7 +31,6 @@ async def get_verified_api_key(
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
-    # Update last_used_at in background (non-blocking)
     await repo.touch_last_used(api_key.id)
 
     return api_key

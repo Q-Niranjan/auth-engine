@@ -47,7 +47,6 @@ async def introspect_token(
     effective_tenant_id = body.tenant_id
 
     if api_key.tenant_id:
-        # Key is tenant-scoped — override whatever the caller sent
         effective_tenant_id = api_key.tenant_id
 
     service = IntrospectService(db=db, redis=redis_conn)

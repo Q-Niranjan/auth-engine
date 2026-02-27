@@ -2,6 +2,12 @@
 
 from typing import Any
 
+from auth_engine.auth_strategies.constants import (
+    MICROSOFT,
+    MICROSOFT_AUTHORIZATION_URL,
+    MICROSOFT_TOKEN_URL,
+    MICROSOFT_USERINFO_URL,
+)
 from auth_engine.auth_strategies.oauth.base_oauth import BaseOAuthStrategy
 
 
@@ -18,14 +24,14 @@ class MicrosoftOAuthStrategy(BaseOAuthStrategy):
     """
 
     # "common" supports both personal and work/school accounts
-    AUTHORIZATION_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-    TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-    USERINFO_URL = "https://graph.microsoft.com/v1.0/me"
+    AUTHORIZATION_URL = MICROSOFT_AUTHORIZATION_URL
+    TOKEN_URL = MICROSOFT_TOKEN_URL
+    USERINFO_URL = MICROSOFT_USERINFO_URL
     DEFAULT_SCOPES = ["openid", "email", "profile", "User.Read"]
 
     def __init__(self, client_id: str, client_secret: str, redirect_uri: str):
         super().__init__(
-            provider_name="microsoft",
+            provider_name=MICROSOFT,
             client_id=client_id,
             client_secret=client_secret,
             redirect_uri=redirect_uri,

@@ -48,9 +48,20 @@ class PasswordUpdate(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=100)
 
 
-class PasswordReset(BaseModel):
+class PasswordResetRequest(BaseModel):
     email: EmailStr
     tenant_id: uuid.UUID | None = None
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=100)
+    confirm_password: str = Field(..., min_length=8, max_length=100)
+
+
+class SetPassword(BaseModel):
+    new_password: str = Field(..., min_length=8, max_length=100)
+    confirm_password: str = Field(..., min_length=8, max_length=100)
 
 
 class TokenRequest(BaseModel):

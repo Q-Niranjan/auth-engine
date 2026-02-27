@@ -1,9 +1,9 @@
 import logging
 
+from auth_engine.external_services.email.base import EmailProvider, EmailProviderConfig
+from auth_engine.external_services.email.providers.console import ConsoleEmailProvider
+from auth_engine.external_services.email.providers.sendgrid import SendGridEmailProvider
 from auth_engine.models.email_config import EmailProviderType
-from auth_engine.services.email.base import EmailProvider, EmailProviderConfig
-from auth_engine.services.email.providers.console import ConsoleEmailProvider
-from auth_engine.services.email.providers.sendgrid import SendGridEmailProvider
 
 logger = logging.getLogger(__name__)
 

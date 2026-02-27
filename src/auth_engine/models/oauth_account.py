@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
@@ -38,7 +38,9 @@ class OAuthAccountORM(Base):
     # Tokens from the provider (stored for potential API calls on behalf of user)
     access_token: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     refresh_token: Mapped[str | None] = mapped_column(String(2048), nullable=True)
-    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Profile snapshot at last login
     provider_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -46,11 +48,13 @@ class OAuthAccountORM(Base):
     provider_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
 

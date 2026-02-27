@@ -4,12 +4,14 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from auth_engine.core.config import settings
-from auth_engine.core.security import security, token_manager
+from auth_engine.core.security import pwd_context, security, token_manager
+from auth_engine.external_services.email import EmailServiceResolver
+from auth_engine.external_services.sms import SMSServiceResolver
 from auth_engine.models import UserORM
 from auth_engine.repositories.email_config_repo import TenantEmailConfigRepository
+from auth_engine.repositories.sms_config_repo import TenantSMSConfigRepository
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.user import UserCreate, UserLogin, UserStatus
-from auth_engine.services.email import EmailServiceResolver
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +21,11 @@ class AuthService:
         self.user_repo = user_repo
         self.session_service = session_service
 
-        # Initialize dependencies for email with same session
         self.email_config_repo = TenantEmailConfigRepository(user_repo.session)
         self.email_resolver = EmailServiceResolver(self.email_config_repo)
+
+        self.sms_config_repo = TenantSMSConfigRepository(user_repo.session)
+        self.sms_resolver = SMSServiceResolver(self.sms_config_repo)
 
     async def register_user(self, user_in: UserCreate) -> UserORM:
         existing_user = await self.user_repo.get_by_email(user_in.email)
@@ -57,24 +61,16 @@ class AuthService:
         user = await self.user_repo.create(user_data)
         await self.user_repo.session.commit()
 
-        # Initiate all verifications
         await self.initiate_verifications(user)
 
         return user
 
     async def initiate_verifications(self, user: UserORM, tenant_id: str | None = None) -> None:
-        """
-        Initiate both email and phone verification.
-        """
-        # Initiate Email Verification
-        await self.initiate_email_verification(user, tenant_id=tenant_id)
+        if user.email:
+            await self.initiate_email_verification(user, tenant_id=tenant_id)
 
-        # Initiate Phone Verification (if number provided)
         if user.phone_number:
-            try:
-                await self.initiate_phone_verification(user)
-            except ValueError:
-                pass
+            await self.initiate_phone_verification(user, tenant_id=tenant_id)
 
     async def authenticate_user(self, login_data: UserLogin) -> UserORM:
         user = await self.user_repo.get_by_email(login_data.email)
@@ -88,7 +84,7 @@ class AuthService:
             raise ValueError("Invalid email or password")
 
         if user.status != UserStatus.ACTIVE:
-            raise ValueError(f"User account is {user.status}")
+            raise ValueError("Account not activated", user.status.value)
 
         # Update last login
         user.last_login_at = datetime.utcnow()
@@ -139,33 +135,26 @@ class AuthService:
     ) -> None:
         user = await self.user_repo.get_by_email(email)
         if not user:
-            # We don't reveal if user exists for security
             return
 
-        # Generate short-lived reset token
+        if not user.password_hash:
+            provider = (user.auth_strategies[0] if user.auth_strategies else "social").capitalize()
+            raise ValueError(
+                f"This account uses {provider} login. \
+                Please sign in with {provider} or set a password."
+            )
+
         reset_token = self.generate_action_token(
             user, token_type="password_reset", expires_delta=timedelta(hours=1)
         )
-
-        # Resolve Email Service based on tenant
-        # We need to initialize the resolver here or in __init__
-        # For better design, we should inject it, but for now we'll
-        #  instantiate it here reusing the session
-        # However, to avoid circular dependencies or
-        # recreating it every time, moving to __init__ is better
-        # For this specific method body replacement, we will use
-        # self.email_resolver initialized in __init__
-
-        # If tenant_id is None, pass a string to
-        # trigger default behavior in resolver or handle explicitly
         target_tenant = tenant_id if tenant_id else "default"
 
         try:
             email_service = await self.email_resolver.resolve(target_tenant)
 
-            # Application URL - should be in settings, default to localhost
             app_url = getattr(settings, "APP_URL", "http://localhost:8000")
-            reset_link = f"{app_url}/reset-password?token={reset_token}"
+            api_prefix = settings.API_V1_PREFIX
+            reset_link = f"{app_url}{api_prefix}/auth/password-reset/confirm?token={reset_token}"
 
             subject = "Password Reset Request"
             html_content = f"""
@@ -196,8 +185,12 @@ class AuthService:
         user_id = payload.get("sub")
         sid = payload.get("sid")
 
-        if not user_id:
-            raise ValueError("Invalid refresh token: sub missing")
+        if not user_id or not sid:
+            raise ValueError("Invalid refresh token: missing user_id or sid")
+
+        # Check if the session is still active in Redis
+        if not await self.session_service.is_session_active(user_id, sid):
+            raise ValueError("Session has been revoked or expired")
 
         user = await self.user_repo.get(uuid.UUID(user_id))
         if not user:
@@ -231,6 +224,62 @@ class AuthService:
         await self.user_repo.session.commit()
         return user
 
+    async def confirm_password_reset(self, token: str, new_password: str) -> None:
+        """
+        Confirm password reset using a token.
+        """
+        payload = token_manager.decode_token(token)
+        if payload.get("type") != "password_reset":
+            raise ValueError("Invalid token type")
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise ValueError("Invalid token: sub missing")
+
+        user = await self.user_repo.get(uuid.UUID(user_id))
+        if not user:
+            raise ValueError("User not found")
+
+        user.password_hash = security.hash_password(new_password)
+        user.password_changed_at = datetime.utcnow()
+        await self.user_repo.session.commit()
+        logger.info(f"Password reset successful for user {user.email}")
+
+    async def set_password_for_oauth_user(self, user: UserORM, new_password: str) -> None:
+        """
+        Allow an authenticated OAuth user (with no password) to set a password.
+        """
+        if user.password_hash:
+            raise ValueError(
+                "Password already exists for this account. Use update-password instead."
+            )
+
+        user.password_hash = security.hash_password(new_password)
+        user.password_changed_at = datetime.utcnow()
+
+        # Update auth strategies to include email_password
+        strategies = list(user.auth_strategies or [])
+        if "email_password" not in strategies:
+            strategies.append("email_password")
+            user.auth_strategies = strategies
+
+        await self.user_repo.session.commit()
+        logger.info(f"Password set for OAuth user {user.id}")
+
+    async def validate_password_reset_token(self, token: str) -> uuid.UUID:
+        """
+        Validate a password reset token and return the user_id.
+        """
+        payload = token_manager.decode_token(token)
+        if payload.get("type") != "password_reset":
+            raise ValueError("Invalid token type")
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise ValueError("Invalid token: sub missing")
+
+        return uuid.UUID(user_id)
+
     async def verify_phone(self, user_id: uuid.UUID, otp: str) -> bool:
         """
         Verify phone OTP.
@@ -241,7 +290,7 @@ class AuthService:
         key = f"otp:phone:{user_id}"
         cached_otp = await self.session_service.redis.get(key)
 
-        if not cached_otp or cached_otp.decode() != otp:
+        if not cached_otp or not pwd_context.verify(otp, cached_otp):
             return False
 
         user = await self.user_repo.get(user_id)
@@ -293,7 +342,8 @@ class AuthService:
         try:
             email_service = await self.email_resolver.resolve(target_tenant)
             app_url = getattr(settings, "APP_URL", "http://localhost:8000")
-            verify_link = f"{app_url}/verify-email?token={token}"
+            api_prefix = settings.API_V1_PREFIX
+            verify_link = f"{app_url}{api_prefix}/auth/verify-email?token={token}"
 
             subject = "Verify Your Email"
             html_content = f"""
@@ -312,24 +362,50 @@ class AuthService:
         except Exception as e:
             logger.error(f"Failed to send verification email: {e}")
 
-    async def initiate_phone_verification(self, user: UserORM) -> str:
-        """
-        Generate and "send" an OTP for phone verification.
-        In a real app, integrate with Twilio or similar.
-        """
+    async def initiate_phone_verification(self, user: UserORM, tenant_id: str | None = None) -> str:
         if not user.phone_number:
             raise ValueError("User has no phone number")
 
+        redis = self.session_service.redis
+
+        cooldown_key = f"otp:cooldown:{user.id}"
+        if await redis.exists(cooldown_key):
+            raise Exception("Please wait before requesting another OTP")
+
         otp = security.generate_otp(6)
+        hashed_otp = pwd_context.hash(otp)
 
-        # Store in Redis if SessionService is available
-        if self.session_service and hasattr(self.session_service, "redis"):
-            key = f"otp:phone:{user.id}"
-            await self.session_service.redis.setex(key, 600, otp)  # 10 minutes
+        otp_key = f"otp:phone:{user.id}"
+        await redis.setex(otp_key, 600, hashed_otp)
+        await redis.setex(cooldown_key, 60, "1")
 
-        # Mock sending SMS
-        logger.info(f"PHONE VERIFICATION OTP for user {user.id} ({user.phone_number}): {otp}")
-        return otp
+        target_tenant = tenant_id if tenant_id else "default"
+
+        try:
+            sms_service = await self.sms_resolver.resolve(target_tenant)
+
+            # Basic E.164 formatting for common 10-digit numbers missing a prefix
+            phone = str(user.phone_number)
+            if len(phone) == 10 and not phone.startswith("+"):
+                # Defaulting to +91 as per your logs, but better to enforce it via UI
+                phone = f"+91{phone}"
+            elif not phone.startswith("+"):
+                logger.warning(
+                    f"Phone number {phone} might be invalid for Twilio (missing + prefix)"
+                )
+
+            message = f"Your verification code is: {otp}. It expires in 10 minutes."
+
+            success = await sms_service.send_sms(phone, message)
+            if success:
+                logger.info(f"Verification SMS sent successfully to {phone}")
+            else:
+                logger.error(f"Twilio failed to send SMS to {phone}")
+
+        except Exception as e:
+            logger.error(f"Failed to send verification SMS: {e}")
+
+        return "OTP sent successfully"
 
     async def request_token(
         self, email: str, action_type: str, tenant_id: uuid.UUID | None = None
@@ -347,7 +423,9 @@ class AuthService:
                 user, tenant_id=str(tenant_id) if tenant_id else None
             )
         elif action_type == "phone_verification":
-            await self.initiate_phone_verification(user)
+            await self.initiate_phone_verification(
+                user, tenant_id=str(tenant_id) if tenant_id else None
+            )
         elif action_type == "password_reset":
             await self.initiate_password_reset(email, tenant_id=tenant_id)
         else:

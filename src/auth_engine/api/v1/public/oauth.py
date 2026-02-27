@@ -1,15 +1,3 @@
-"""
-OAuth endpoints.
-
-Two routes per provider:
-
-    GET  /auth/oauth/{provider}/login
-         → Generate state, build authorization URL, redirect user to provider
-
-    GET  /auth/oauth/{provider}/callback
-         → Validate state, exchange code, find/create user, return tokens
-"""
-
 import logging
 
 import redis.asyncio as aioredis
@@ -19,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.auth_deps import get_current_active_user
 from auth_engine.api.dependencies.deps import get_db
+from auth_engine.auth_strategies.constants import SUPPORTED_PROVIDERS
 from auth_engine.auth_strategies.oauth.factory import get_oauth_strategy
 from auth_engine.core.exceptions import AuthenticationError
 from auth_engine.core.redis import get_redis
@@ -35,8 +24,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SUPPORTED_PROVIDERS = {"google", "github", "microsoft"}
-
 
 def _get_oauth_service(
     db: AsyncSession,
@@ -47,11 +34,6 @@ def _get_oauth_service(
         oauth_repo=OAuthAccountRepository(db),
         redis_conn=redis_conn,
     )
-
-
-# ---------------------------------------------------------------------------
-# Step 1: Initiate login — redirect user to provider
-# ---------------------------------------------------------------------------
 
 
 @router.get("/{provider}/login")
@@ -81,10 +63,7 @@ async def oauth_login(
         strategy = get_oauth_strategy(provider)
         oauth_service = _get_oauth_service(db, redis_conn)
 
-        # Generate CSRF state and store in Redis
         state = await oauth_service.generate_state(tenant_id=tenant_id)
-
-        # Build the provider authorization URL
         authorization_url = await strategy.get_authorization_url(state=state)
 
         logger.info(f"[oauth:{provider}] Initiating login, state={state[:8]}...")
@@ -98,11 +77,6 @@ async def oauth_login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to initiate OAuth login.",
         ) from e
-
-
-# ---------------------------------------------------------------------------
-# Step 2: Callback — provider redirects back here with code + state
-# ---------------------------------------------------------------------------
 
 
 @router.get("/{provider}/callback", response_model=OAuthLoginResponse)
@@ -126,8 +100,6 @@ async def oauth_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported provider '{provider}'",
         )
-
-    # User denied access on the provider's consent screen
     if error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -147,11 +119,9 @@ async def oauth_callback(
         # Find or create AuthEngine user
         user, oauth_account, is_new_user = await oauth_service.find_or_create_user(oauth_profile)
 
-        # Commit all DB changes
         await db.commit()
         await db.refresh(user)
 
-        # Issue AuthEngine tokens
         tokens = oauth_service.issue_tokens(user)
 
         logger.info(f"[oauth:{provider}] User {user.id} authenticated. new_user={is_new_user}")
@@ -162,7 +132,7 @@ async def oauth_callback(
             token_type=tokens["token_type"],
             expires_in=tokens["expires_in"],
             is_new_user=is_new_user,
-            provider=provider,  # type: ignore[arg-type]
+            provider=provider,  # type:ignore[arg-type]
         )
 
     except AuthenticationError as e:
@@ -174,11 +144,6 @@ async def oauth_callback(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="OAuth authentication failed. Please try again.",
         ) from e
-
-
-# ---------------------------------------------------------------------------
-# Bonus: Link additional provider to existing authenticated user
-# ---------------------------------------------------------------------------
 
 
 @router.get("/{provider}/link")
@@ -200,7 +165,6 @@ async def oauth_link_initiate(
         )
 
     try:
-        # Check if already linked
         oauth_repo = OAuthAccountRepository(db)
         existing = await oauth_repo.get_by_user_and_provider(current_user.id, provider)
         if existing:
@@ -212,7 +176,6 @@ async def oauth_link_initiate(
         strategy = get_oauth_strategy(provider)
         oauth_service = _get_oauth_service(db, redis_conn)
 
-        # Encode user_id in state so callback can attribute to correct user
         state = await oauth_service.generate_state()
         authorization_url = await strategy.get_authorization_url(state=state)
 
@@ -226,11 +189,6 @@ async def oauth_link_initiate(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to initiate account linking.",
         ) from e
-
-
-# ---------------------------------------------------------------------------
-# List linked OAuth accounts for current user
-# ---------------------------------------------------------------------------
 
 
 @router.get("/accounts", response_model=list[OAuthAccountResponse])

@@ -22,7 +22,6 @@ async def get_current_user(
     token = credentials.credentials
 
     try:
-        # Verify and decode the access token
         payload = token_manager.verify_access_token(token)
         user_id: str | None = payload.get("sub")
 
@@ -39,7 +38,6 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
 
-    # Session validation (Pro feature)
     session_id = payload.get("sid")
     if session_id:
         redis = await get_redis()
