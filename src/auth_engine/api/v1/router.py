@@ -23,7 +23,6 @@ api_router.include_router(me.endpoints.router, prefix="/me", tags=["me"])
 api_router.include_router(me.mfa.router, prefix="/me/mfa", tags=["mfa"])
 
 
-
 # Platform Management (Super Admin Scope)
 api_router.include_router(platform.user.router, prefix="/platform/users", tags=["platform-users"])
 api_router.include_router(

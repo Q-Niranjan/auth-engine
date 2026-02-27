@@ -59,7 +59,7 @@ class TOTPService:
         if not user.mfa_secret:
             raise AuthenticationError("MFA enrollment not initiated. Call /me/mfa/enroll first.")
 
-        if not TOTPStrategy.verify_code(user.mfa_secret, code):
+        if not user.mfa_secret or not TOTPStrategy.verify_code(user.mfa_secret, code):
             raise InvalidTokenError("Invalid TOTP code. Please check your authenticator app.")
 
         await self.user_repo.update(user.id, {"mfa_enabled": True})
@@ -71,7 +71,7 @@ class TOTPService:
         if not user.mfa_enabled:
             raise AuthenticationError("MFA is not enabled")
 
-        if not TOTPStrategy.verify_code(user.mfa_secret, code):
+        if not user.mfa_secret or not TOTPStrategy.verify_code(user.mfa_secret, code):
             raise InvalidTokenError("Invalid TOTP code")
 
         await self.user_repo.update(
@@ -140,12 +140,12 @@ class TOTPService:
         if not user.mfa_enabled or not user.mfa_secret:
             raise AuthenticationError("MFA not configured for this account")
 
-        if not TOTPStrategy.verify_code(user.mfa_secret, code):
+        if not user.mfa_secret or not TOTPStrategy.verify_code(user.mfa_secret, code):
             raise InvalidTokenError("Invalid TOTP code")
 
         session_context = json.loads(raw)
         session_id = await self.session_service.create_session(
-            user_id=str(user.id),
+            user_id=user.id,
             expires_in_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
             ip_address=ip_address or session_context.get("ip_address", "unknown"),
             user_agent=user_agent or session_context.get("user_agent", "unknown"),

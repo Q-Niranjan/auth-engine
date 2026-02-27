@@ -162,11 +162,16 @@ class MagicLinkService:
         # Delegates to strategy — validates JWT + consumes Redis flag
         auth_data = await self.strategy.authenticate({"token": token})
         user: UserORM = auth_data["user"]
-        
-        if "email_magic_link" not in user.auth_strategies:
-            user.auth_strategies.append("email_magic_link")
+
+        auth_strategies = user.auth_strategies
+        if auth_strategies is None:
+            auth_strategies = []
+            user.auth_strategies = auth_strategies
+
+        if "email_magic_link" not in auth_strategies:
+            auth_strategies.append("email_magic_link")
             await self.user_repo.session.commit()
-        
+
         # Create a tracked session (same as normal login)
         session_id = await self.session_service.create_session(
             user_id=user.id,
@@ -181,4 +186,3 @@ class MagicLinkService:
             f"[MagicLink] User authenticated. " f"user_id={user.id} session_id={session_id}"
         )
         return tokens
-        

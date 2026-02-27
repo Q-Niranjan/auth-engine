@@ -1,3 +1,3 @@
-from . import endpoints,mfa
+from . import endpoints, mfa
 
-__all__ = ["endpoints","mfa"]
+__all__ = ["endpoints", "mfa"]

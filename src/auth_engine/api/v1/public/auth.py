@@ -1,8 +1,8 @@
-from typing import Union
 import uuid
 
 import redis.asyncio as redis
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.auth_deps import get_current_active_user
@@ -12,6 +12,7 @@ from auth_engine.core.config import settings
 from auth_engine.core.redis import get_redis
 from auth_engine.models import UserORM
 from auth_engine.repositories.user_repo import UserRepository
+from auth_engine.schemas.mfa import MFAChallengeResponse
 from auth_engine.schemas.user import (
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -21,15 +22,12 @@ from auth_engine.schemas.user import (
     UserCreate,
     UserLogin,
     UserLoginResponse,
-    UserResponse,  
+    UserResponse,
 )
-from auth_engine.schemas.mfa import MFAChallengeResponse
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.auth_service import AuthService
 from auth_engine.services.session_service import SessionService
 from auth_engine.services.totp_service import TOTPService
-from fastapi.responses import JSONResponse
-
 
 router = APIRouter()
 
@@ -55,7 +53,7 @@ async def register(
 
 @router.post(
     "/login",
-    response_model=Union[UserLoginResponse, MFAChallengeResponse],
+    response_model=UserLoginResponse | MFAChallengeResponse,
 )
 async def login(
     request: Request,
@@ -64,7 +62,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
     redis_conn: redis.Redis = Depends(get_redis),
     audit_service: AuditService = Depends(get_audit_service),
-) -> Union[UserLoginResponse, MFAChallengeResponse]:
+) -> UserLoginResponse | MFAChallengeResponse:
     user_repo = UserRepository(db)
     auth_service = AuthService(user_repo)
     session_service = SessionService(redis_conn)
@@ -137,6 +135,7 @@ async def login(
             status="failure",
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
+
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(

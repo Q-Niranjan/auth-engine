@@ -6,7 +6,7 @@ from auth_engine.core.security import SecurityUtils
 
 
 class TOTPStrategy(TokenBasedStrategy):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("totp")
 
     @staticmethod

@@ -38,11 +38,10 @@ class UserORM(Base):
     )
     is_email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    
-    #MFA fields
+
+    # MFA fields
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mfa_secret: Mapped[str | None] = mapped_column(String(500), nullable=True)
-
 
     # Metadata
     auth_strategies: Mapped[list | None] = mapped_column(JSON, nullable=True)
