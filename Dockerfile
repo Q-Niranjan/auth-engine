@@ -1,51 +1,39 @@
-# ─────────────────────────────────────────────
-# Stage 1: Builder — install dependencies
-# ─────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim-bookworm AS builder
 
 WORKDIR /app
 
-# Install uv for fast dependency resolution
+ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+
 RUN pip install uv --no-cache-dir
 
-# Copy dependency files first (layer caching — only re-runs if these change)
-COPY pyproject.toml .
-COPY uv.lock* .
-
-# Install all dependencies into a virtual environment
+COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 
-# ─────────────────────────────────────────────
-# Stage 2: Runtime — lean final image
-# ─────────────────────────────────────────────
-FROM python:3.12-slim AS runtime
+FROM python:3.12-slim-bookworm AS runtime
 
 WORKDIR /app
 
-# Create non-root user for security
 RUN groupadd -r authengine && useradd -r -g authengine authengine
 
-# Copy virtual environment from builder
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy application source
 COPY src/ ./src/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
 COPY pyproject.toml .
 
-# Make venv binaries available
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Switch to non-root user
+RUN chown -R authengine:authengine /app
+
 USER authengine
 
-EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"
 
-# Default: run the application
-# Override with `docker compose run app auth-engine migrate` for migrations
+EXPOSE 8000
 CMD ["auth-engine", "run"]

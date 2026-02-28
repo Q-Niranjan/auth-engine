@@ -1,0 +1,88 @@
+name: Tag the repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      new-tag:
+        description: Tag in "vN.N.N" format
+        required: true
+        type: string
+      previous-tag:
+        description: Previous tag. "None" if no previous tag
+        required: true
+        type: string
+        default: latest
+
+jobs:
+  tag:
+    name: Create & Push Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag format
+        run: |
+          if [[ ! "${{ inputs.new-tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+|-beta\.[0-9]+|-alpha\.[0-9]+)?$ ]]; then
+            echo "Invalid tag format: ${{ inputs.new-tag }}"
+            echo "Expected format: vN.N.N or vN.N.N-rc.N / -beta.N / -alpha.N"
+            exit 1
+          fi
+
+      - name: Check tag does not already exist
+        run: |
+          if git rev-parse "${{ inputs.new-tag }}" >/dev/null 2>&1; then
+            echo "Tag ${{ inputs.new-tag }} already exists"
+            exit 1
+          fi
+
+      - name: Validate previous tag exists (if not None)
+        run: |
+          if [ "${{ inputs.previous-tag }}" != "None" ] && [ "${{ inputs.previous-tag }}" != "latest" ]; then
+            if ! git rev-parse "${{ inputs.previous-tag }}" >/dev/null 2>&1; then
+              echo " Previous tag ${{ inputs.previous-tag }} does not exist"
+              exit 1
+            fi
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV="${{ inputs.previous-tag }}"
+
+          if [ "$PREV" == "None" ] || [ "$PREV" == "latest" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" ${PREV}..HEAD)
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            COMMITS="- No changes recorded"
+          fi
+
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ inputs.new-tag }}" -m "Release ${{ inputs.new-tag }}"
+          git push origin "${{ inputs.new-tag }}"
+          echo "Tag ${{ inputs.new-tag }} created and pushed"
+
+      - name: Summary
+        run: |
+          echo "##ag Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**New Tag:** \`${{ inputs.new-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Previous Tag:** \`${{ inputs.previous-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Changelog" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.changelog.outputs.CHANGELOG }}" >> $GITHUB_STEP_SUMMARY

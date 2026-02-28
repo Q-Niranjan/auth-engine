@@ -1,8 +1,7 @@
 services:
 
-  # ─────────────────────────────────────────────
+  
   # AuthEngine Application
-  # ─────────────────────────────────────────────
   app:
     build:
       context: .
@@ -13,10 +12,9 @@ services:
     env_file:
       - .env
     environment:
-      # Override URLs to use Docker service names instead of localhost
-      POSTGRES_URL: postgresql+asyncpg://authengine:${POSTGRES_PASSWORD:-strongpassword}@postgres:5432/authengine
-      MONGODB_URL: mongodb://admin:${MONGO_PASSWORD:-strongpassword}@mongo:27017
-      REDIS_URL: redis://redis:6379
+      POSTGRES_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MONGODB_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/${MONGO_DB}?authSource=${MONGO_AUTH_SOURCE}
+      REDIS_URL: redis://${REDIS_USER}:${REDIS_PASSWORD}@redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
@@ -28,22 +26,20 @@ services:
     networks:
       - authengine-network
 
-  # ─────────────────────────────────────────────
   # PostgreSQL — Primary Database
-  # ─────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: authengine-postgres
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: authengine
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strongpassword}
-      POSTGRES_DB: authengine
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - authengine_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U authengine -d authengine"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -51,21 +47,20 @@ services:
     networks:
       - authengine-network
 
-  # ─────────────────────────────────────────────
   # MongoDB — Audit Logs
-  # ─────────────────────────────────────────────
   mongo:
-    image: mongo:latest
+    image: mongo:7-jammy
     container_name: authengine-mongo
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-strongpassword}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
     volumes:
       - authengine_mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      test: ["CMD", "mongosh", "--username", "${MONGO_USER}", "--password", "${MONGO_PASSWORD}", "--eval", "db.adminCommand('ping')", "--quiet"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -73,19 +68,21 @@ services:
     networks:
       - authengine-network
 
-  # ─────────────────────────────────────────────
   # Redis — Sessions, Rate Limiting, OAuth State
-  # No password required for local development
-  # ─────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: authengine-redis
     ports:
       - "6379:6379"
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --user ${REDIS_USER} on >>${REDIS_PASSWORD} ~* &* +@all
+      --appendonly yes
     volumes:
       - authengine_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-u", "redis://${REDIS_USER}:${REDIS_PASSWORD}@localhost:6379/0", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -93,9 +90,7 @@ services:
     networks:
       - authengine-network
 
-# ─────────────────────────────────────────────
-# Volumes — persistent data survives restarts
-# ─────────────────────────────────────────────
+# Volumes
 volumes:
   authengine_pg_data:
     name: authengine_pg_data
@@ -104,9 +99,7 @@ volumes:
   authengine_redis_data:
     name: authengine_redis_data
 
-# ─────────────────────────────────────────────
-# Network — isolated bridge network
-# ─────────────────────────────────────────────
+# Network
 networks:
   authengine-network:
     name: authengine-network

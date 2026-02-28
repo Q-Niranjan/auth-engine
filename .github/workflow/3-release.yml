@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["Build & Push Image"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (e.g. v1.0.0)
+        required: true
+        type: string
+      previous-tag:
+        description: Previous tag (use "None" for first release)
+        required: true
+        default: latest
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: write
+
+    steps:
+      - id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+            echo "PREV=${{ inputs.previous-tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+            echo "PREV=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.TAG }}
+          fetch-depth: 0
+
+      - id: changelog
+        run: |
+          PREV="${{ steps.resolve.outputs.PREV }}"
+          CURRENT="${{ steps.resolve.outputs.TAG }}"
+
+          if [ "$PREV" = "None" ] || [ "$PREV" = "latest" ]; then
+            PREV=$(git tag --sort=-version:refname | grep -v "^${CURRENT}$" | head -n 1)
+          fi
+
+          if [ -z "$PREV" ]; then
+            LOG=$(git log --pretty=format:"- %s (%h)")
+          else
+            LOG=$(git log --pretty=format:"- %s (%h)" ${PREV}..${CURRENT})
+          fi
+
+          [ -z "$LOG" ] && LOG="- No changes"
+
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "PREV=$PREV" >> $GITHUB_OUTPUT
+
+      - id: prerelease
+        run: |
+          [[ "${{ steps.resolve.outputs.TAG }}" =~ -(rc|beta|alpha)\. ]] \
+            && echo "VALUE=true" >> $GITHUB_OUTPUT \
+            || echo "VALUE=false" >> $GITHUB_OUTPUT
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.resolve.outputs.TAG }}
+          name: Release ${{ steps.resolve.outputs.TAG }}
+          prerelease: ${{ steps.prerelease.outputs.VALUE }}
+          body: |
+            ## What's Changed
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            **Full Changelog:** ${{ steps.changelog.outputs.PREV }}...${{ steps.resolve.outputs.TAG }}
+
+            ## Docker
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.resolve.outputs.TAG }}
+            ```
