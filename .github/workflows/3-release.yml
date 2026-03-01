@@ -24,7 +24,8 @@ jobs:
       contents: write
 
     steps:
-      - id: resolve
+      - name: Resolve tag
+        id: resolve
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "TAG=${{ inputs.tag }}" >> $GITHUB_OUTPUT
@@ -34,12 +35,14 @@ jobs:
             echo "PREV=latest" >> $GITHUB_OUTPUT
           fi
 
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           ref: ${{ steps.resolve.outputs.TAG }}
           fetch-depth: 0
 
-      - id: changelog
+      - name: Generate changelog
+        id: changelog
         run: |
           PREV="${{ steps.resolve.outputs.PREV }}"
           CURRENT="${{ steps.resolve.outputs.TAG }}"
@@ -61,13 +64,15 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
           echo "PREV=$PREV" >> $GITHUB_OUTPUT
 
-      - id: prerelease
+      - name: Determine pre-release
+        id: prerelease
         run: |
           [[ "${{ steps.resolve.outputs.TAG }}" =~ -(rc|beta|alpha)\. ]] \
             && echo "VALUE=true" >> $GITHUB_OUTPUT \
             || echo "VALUE=false" >> $GITHUB_OUTPUT
 
-      - uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.resolve.outputs.TAG }}
           name: Release ${{ steps.resolve.outputs.TAG }}
@@ -78,7 +83,3 @@ jobs:
 
             **Full Changelog:** ${{ steps.changelog.outputs.PREV }}...${{ steps.resolve.outputs.TAG }}
 
-            ## Docker
-            ```bash
-            docker pull ghcr.io/${{ github.repository }}:${{ steps.resolve.outputs.TAG }}
-            ```
