@@ -2,7 +2,15 @@
 
 > A production-ready Identity & Access Management (IAM) system built with FastAPI. One auth layer for all your applications — login, roles, permissions, and token validation in one place.
 
-📖 **[Technical Reference →](TECHNICAL.md)** — architecture, data models, flows, Redis keys, config, and extension guide.
+**[Technical Reference →](TECHNICAL.md)** — architecture, data models, flows, Redis keys, config, and extension guide.
+
+**[Demo Docs](https://authengine-1-0-0.onrender.com/docs)** — Interactive API explorer.
+
+**Tech Stack Deployed:**
+- **FastAPI API**: Deployed on Render
+- **PostgreSQL**: Hosted on Supabase
+- **Redis**: Hosted on Upstash
+- **MongoDB**: Hosted on MongoDB Atlas
 
 ---
 
@@ -28,13 +36,13 @@ Instead of building authentication into every service you create, you build it o
 
 | Method | Status |
 |--------|--------|
-| Email + Password | ✅ Live |
-| Google OAuth 2.0 | ✅ Live |
-| GitHub OAuth 2.0 | ✅ Live |
-| Microsoft OAuth 2.0 | ✅ Live |
-| Magic Links (passwordless) | ✅ Live |
-| TOTP / MFA (Google Authenticator) | ✅ Live |
-| WebAuthn / Passkeys | 🔜 Planned |
+| Email + Password | Live |
+| Google OAuth 2.0 | Live |
+| GitHub OAuth 2.0 | Live |
+| Microsoft OAuth 2.0 | Live |
+| Magic Links (passwordless) | Live |
+| TOTP / MFA (Google Authenticator) | Live |
+| WebAuthn / Passkeys | Planned |
 
 ---
 

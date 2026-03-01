@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "AuthEngine"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = (
-        "A powerful, multi-tenant Auth Engine with RBAC and Permission-based access control."
+        "Production-ready IAM system built with "
+        "FastAPI — supports authentication, multi-tenancy, fine-grained permissions, "
+        "and token introspection to power multiple apps from a unified identity layer."
     )
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
