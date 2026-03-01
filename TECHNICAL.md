@@ -172,6 +172,7 @@ auth-engine/
 │       │       └── factory.py
 │       ├── core/
 │       │   ├── config.py                  # Pydantic Settings — all env vars typed
+│       │   ├── templates.py               # Jinja2 environment (PackageLoader)
 │       │   ├── exceptions.py
 │       │   ├── health.py
 │       │   ├── mongodb.py
@@ -216,6 +217,9 @@ auth-engine/
 │       │   ├── tenant_service.py
 │       │   ├── user_service.py
 │       │   └── audit_service.py
+│       ├── templates/
+│       │   ├── email/                     # Branded HTML templates
+│       │   └── sms/                       # SMS text templates
 │       └── main.py
 └── tests/
 ```

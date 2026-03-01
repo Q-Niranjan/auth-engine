@@ -5,6 +5,7 @@ from typing import Any
 
 from auth_engine.core.config import settings
 from auth_engine.core.security import pwd_context, security, token_manager
+from auth_engine.core.templates import jinja_env
 from auth_engine.external_services.email import EmailServiceResolver
 from auth_engine.external_services.sms import SMSServiceResolver
 from auth_engine.models import UserORM
@@ -26,6 +27,13 @@ class AuthService:
 
         self.sms_config_repo = TenantSMSConfigRepository(user_repo.session)
         self.sms_resolver = SMSServiceResolver(self.sms_config_repo)
+
+        # Use the central Jinja2 environment
+        self.jinja_env = jinja_env
+
+    def _render_template(self, template_name: str, **kwargs: Any) -> str:
+        template = self.jinja_env.get_template(template_name)
+        return template.render(**kwargs)
 
     async def register_user(self, user_in: UserCreate) -> UserORM:
         existing_user = await self.user_repo.get_by_email(user_in.email)
@@ -72,22 +80,30 @@ class AuthService:
         if user.phone_number:
             await self.initiate_phone_verification(user, tenant_id=tenant_id)
 
-    async def authenticate_user(self, login_data: UserLogin) -> UserORM:
+    async def authenticate_user(self, login_data: UserLogin, ip_address: str | None = None) -> UserORM:
         user = await self.user_repo.get_by_email(login_data.email)
         if not user:
             raise ValueError("Invalid email or password")
 
+        # Check for account lockout
+        if user.failed_login_attempts >= 5:
+            raise ValueError("Account locked due to too many failed attempts")
+
         if not user.password_hash or not security.verify_password(
             login_data.password, str(user.password_hash)
         ):
-            # TODO: Increment failed login attempts
+            # Increment failed login attempts
+            user.failed_login_attempts += 1
+            await self.user_repo.session.commit()
             raise ValueError("Invalid email or password")
 
         if user.status != UserStatus.ACTIVE:
             raise ValueError("Account not activated", user.status.value)
 
-        # Update last login
+        # Update last login and reset failed attempts
         user.last_login_at = datetime.utcnow()
+        user.last_login_ip = ip_address
+        user.failed_login_attempts = 0
         await self.user_repo.session.commit()
 
         return user
@@ -157,19 +173,11 @@ class AuthService:
             reset_link = f"{app_url}{api_prefix}/auth/password-reset/confirm?token={reset_token}"
 
             subject = "Password Reset Request"
-            html_content = f"""
-            <html>
-                <body>
-                    <h1>Password Reset</h1>
-                    <p>Hello {user.first_name or 'User'},</p>
-                    <p>You requested a password reset. Click the 
-                    link below to reset your password:</p>
-                    <p><a href="{reset_link}">Reset Password</a></p>
-                    <p>This link expires in 1 hour.</p>
-                    <p>If you did not request this, please ignore this email.</p>
-                </body>
-            </html>
-            """
+            html_content = self._render_template(
+                "email/password_reset.html",
+                first_name=user.first_name or "User",
+                reset_link=reset_link,
+            )
 
             await email_service.send_email([email], subject, html_content)
             logger.info(f"Password reset email sent to {email} via {type(email_service).__name__}")
@@ -346,17 +354,11 @@ class AuthService:
             verify_link = f"{app_url}{api_prefix}/auth/verify-email?token={token}"
 
             subject = "Verify Your Email"
-            html_content = f"""
-            <html>
-                <body>
-                    <h1>Email Verification</h1>
-                    <p>Hello {user.first_name or 'User'},</p>
-                    <p>Please click the link below to verify your email address:</p>
-                    <p><a href="{verify_link}">Verify Email</a></p>
-                    <p>This link expires in 24 hours.</p>
-                </body>
-            </html>
-            """
+            html_content = self._render_template(
+                "email/verify_email.html",
+                first_name=user.first_name or "User",
+                verify_link=verify_link,
+            )
             await email_service.send_email([str(user.email)], subject, html_content)
             logger.info(f"Verification email sent to {user.email}")
         except Exception as e:
@@ -394,7 +396,7 @@ class AuthService:
                     f"Phone number {phone} might be invalid for Twilio (missing + prefix)"
                 )
 
-            message = f"Your verification code is: {otp}. It expires in 10 minutes."
+            message = self._render_template("sms/otp.txt", otp=otp)
 
             success = await sms_service.send_sms(phone, message)
             if success:
