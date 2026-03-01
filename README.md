@@ -5,6 +5,15 @@
 
 [![Live Docs](https://img.shields.io/badge/Live%20Docs-Swagger%20UI-blue)](https://authengine-1-0-0.onrender.com/docs)
 [![Docker](https://img.shields.io/badge/Docker-qniranjan01%2Fauthengine-blue)](https://hub.docker.com/r/qniranjan01/authengine)
+**[Technical Reference →](TECHNICAL.md)** — architecture, data models, flows, Redis keys, config, and extension guide.
+
+**[Demo Docs](https://authengine-1-0-0.onrender.com/docs)** — Interactive API explorer.
+
+**Tech Stack Deployed:**
+- **FastAPI API**: Deployed on Render
+- **PostgreSQL**: Hosted on Supabase
+- **Redis**: Hosted on Upstash
+- **MongoDB**: Hosted on MongoDB Atlas
 
 ---
 
