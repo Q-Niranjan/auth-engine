@@ -19,7 +19,12 @@ from auth_engine.models import *  # noqa
 config = context.config
 
 # Set the database URL from settings
-config.set_main_option("sqlalchemy.url", settings.POSTGRES_URL.replace("+asyncpg", ""))
+# FIXED — add sslmode for Supabase
+pg_url = settings.POSTGRES_URL.replace("+asyncpg", "")
+if "sslmode" not in pg_url:
+    separator = "&" if "?" in pg_url else "?"
+    pg_url = f"{pg_url}{separator}sslmode=require"
+config.set_main_option("sqlalchemy.url", pg_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

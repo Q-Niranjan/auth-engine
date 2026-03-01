@@ -1,6 +1,8 @@
 import logging
+import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.models.permission import PermissionORM
@@ -18,7 +20,6 @@ DEFAULT_ROLES = [
     ("TENANT_USER", "Standard tenant user", RoleScope.TENANT, 10),
 ]
 
-# (Permission Name, Description)
 DEFAULT_PERMISSIONS = [
     ("platform.users.view", "View all users globally"),
     ("platform.users.manage", "Manage all users globally"),
@@ -108,52 +109,56 @@ ROLE_PERMISSIONS = {
 
 
 async def seed_roles(db: AsyncSession) -> None:
-    # 1. Seed Roles
-    role_objs: dict[str, RoleORM] = {}
-    for name, description, scope, level in DEFAULT_ROLES:
-        role_query = select(RoleORM).where(RoleORM.name == name)
-        role_result = await db.execute(role_query)
-        role = role_result.scalar_one_or_none()
+    # ── 1. Bulk upsert roles (1 query) ──────────────────────────────────────
+    role_rows = [
+        {"name": name, "description": desc, "scope": scope, "level": level}
+        for name, desc, scope, level in DEFAULT_ROLES
+    ]
+    await db.execute(
+        insert(RoleORM)
+        .values(role_rows)
+        .on_conflict_do_update(
+            index_elements=["name"],
+            set_={"description": insert(RoleORM).excluded.description,
+                  "scope": insert(RoleORM).excluded.scope,
+                  "level": insert(RoleORM).excluded.level},
+        )
+    )
 
-        if not role:
-            logger.info(f"Seeding role: {name}")
-            role = RoleORM(name=name, description=description, scope=scope, level=level)
-            db.add(role)
-        else:
-            role.description = description
-            role.scope = scope
-            role.level = level
-        role_objs[name] = role
+    # ── 2. Bulk upsert permissions (1 query) ────────────────────────────────
+    perm_rows = [
+        {"name": name, "description": desc}
+        for name, desc in DEFAULT_PERMISSIONS
+    ]
+    await db.execute(
+        insert(PermissionORM)
+        .values(perm_rows)
+        .on_conflict_do_update(
+            index_elements=["name"],
+            set_={"description": insert(PermissionORM).excluded.description},
+        )
+    )
 
-    # 2. Seed Permissions
-    permission_objs: dict[str, PermissionORM] = {}
-    for name, description in DEFAULT_PERMISSIONS:
-        perm_query = select(PermissionORM).where(PermissionORM.name == name)
-        perm_result = await db.execute(perm_query)
-        perm = perm_result.scalar_one_or_none()
+    await db.flush()
 
-        if not perm:
-            logger.info(f"Seeding permission: {name}")
-            perm = PermissionORM(name=name, description=description)
-            db.add(perm)
-        else:
-            perm.description = description
-        permission_objs[name] = perm
+    # ── 3. Fetch all roles + permissions in 2 queries ───────────────────────
+    roles = {r.name: r for r in (await db.execute(select(RoleORM))).scalars().all()}
+    perms = {p.name: p for p in (await db.execute(select(PermissionORM))).scalars().all()}
 
-    await db.flush()  # Ensure IDs are populated
+    # ── 4. Bulk upsert role-permission associations (1 query) ───────────────
+    assoc_rows = [
+        {"role_id": roles[role_name].id, "permission_id": perms[perm_name].id}
+        for role_name, perm_names in ROLE_PERMISSIONS.items()
+        for perm_name in perm_names
+        if role_name in roles and perm_name in perms
+    ]
 
-    # 3. Associate Permissions with Roles
-    for role_name, perms in ROLE_PERMISSIONS.items():
-        role = role_objs[role_name]
-        for perm_name in perms:
-            perm = permission_objs[perm_name]
-
-            # Check if association already exists
-            assoc_query = select(RolePermissionORM).where(
-                RolePermissionORM.role_id == role.id, RolePermissionORM.permission_id == perm.id
-            )
-            assoc_result = await db.execute(assoc_query)
-            if not assoc_result.scalar_one_or_none():
-                db.add(RolePermissionORM(role_id=role.id, permission_id=perm.id))
+    if assoc_rows:
+        await db.execute(
+            insert(RolePermissionORM)
+            .values(assoc_rows)
+            .on_conflict_do_nothing()
+        )
 
     await db.commit()
+    logger.info("Roles and permissions seeded successfully")

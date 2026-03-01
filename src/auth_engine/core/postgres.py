@@ -3,15 +3,16 @@ from sqlalchemy.orm import DeclarativeBase
 
 from auth_engine.core.config import settings
 
-# Create engine for PostgreSQL
 engine = create_async_engine(
     settings.POSTGRES_URL,
-    pool_size=settings.POSTGRES_POOL_SIZE,
+    pool_size=settings.POSTGRES_POOL_SIZE,                  
     max_overflow=settings.POSTGRES_MAX_OVERFLOW,
+    pool_pre_ping=True,                 # detect stale connections (important for hosted DBs)
+    pool_recycle=300,                   # recycle connections every 5 min
+    connect_args={"ssl": "require"},    # Supabase requires SSL
     future=True,
     echo=settings.DEBUG,
 )
-
 # Async session factory
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

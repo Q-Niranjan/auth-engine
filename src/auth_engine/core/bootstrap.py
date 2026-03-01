@@ -1,4 +1,7 @@
+import logging
+
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.core.config import settings
@@ -7,38 +10,62 @@ from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
 from auth_engine.models.tenant import TenantType
 from auth_engine.schemas.user import UserStatus
 
+logger = logging.getLogger(__name__)
+
 
 async def seed_super_admin(db: AsyncSession) -> None:
     """
-    Seeds a SUPER_ADMIN user if none exists.
+    Idempotent super admin bootstrap.
+    Single query early-exit — near zero cost on subsequent startups.
     """
-    # Check if any SUPER_ADMIN already exists
-    query = select(UserORM).join(UserRoleORM).join(RoleORM).where(RoleORM.name == "SUPER_ADMIN")
-    result = await db.execute(query)
-    if result.scalars().first():
+
+    # ── Single query: fetch role + user + tenant + assignment together ───────
+    # If all 4 exist and are linked, we're done in 1 round trip
+    full_check = await db.execute(
+        select(
+            RoleORM,
+            UserORM,
+            TenantORM,
+            UserRoleORM,
+        )
+        .join(UserRoleORM, RoleORM.id == UserRoleORM.role_id)
+        .join(UserORM, UserORM.id == UserRoleORM.user_id)
+        .join(TenantORM, TenantORM.id == UserRoleORM.tenant_id)
+        .where(RoleORM.name == "SUPER_ADMIN")
+        .where(TenantORM.type == TenantType.PLATFORM)
+        .limit(1)
+    )
+    row = full_check.first()
+
+    if row:
+        logger.debug("Super admin fully seeded — skipping")
         return
 
-    # No super admin found, let's create one
-    # First, find the SUPER_ADMIN role ID
-    role_query = select(RoleORM).where(RoleORM.name == "SUPER_ADMIN")
-    role_result = await db.execute(role_query)
-    super_admin_role = role_result.scalar_one_or_none()
+    logger.info("Bootstrapping super admin...")
 
-    if not super_admin_role:
-        # This shouldn't happen if seed_roles was called first
-        # But for safety, we return if role definitions are missing
+    # ── Fetch only what's missing ────────────────────────────────────────────
+    results = await db.execute(
+        select(RoleORM, UserORM, TenantORM)
+        .outerjoin(UserORM, UserORM.email == settings.SUPERADMIN_EMAIL)
+        .outerjoin(TenantORM, TenantORM.type == TenantType.PLATFORM)
+        .where(RoleORM.name == "SUPER_ADMIN")
+        .limit(1)
+    )
+    row = results.first()
+
+    if not row or not row.RoleORM:
+        logger.warning("SUPER_ADMIN role not found — ensure seed_roles ran first")
         return
 
-    # Check if user with this email already exists
-    user_query = select(UserORM).where(UserORM.email == settings.SUPERADMIN_EMAIL)
-    user_result = await db.execute(user_query)
-    user = user_result.scalar_one_or_none()
+    super_admin_role: RoleORM = row.RoleORM
+    user: UserORM | None = row.UserORM
+    platform: TenantORM | None = row.TenantORM
 
+    # ── Create user if missing ───────────────────────────────────────────────
     if not user:
-        # Create new user
         user = UserORM(
             email=settings.SUPERADMIN_EMAIL,
-            username="admin",
+            username="superadmin",
             password_hash=security_utils.hash_password(settings.SUPERADMIN_PASSWORD),
             first_name="Super",
             last_name="Admin",
@@ -47,12 +74,9 @@ async def seed_super_admin(db: AsyncSession) -> None:
         )
         db.add(user)
         await db.flush()
+        logger.info(f"Created super admin user: {settings.SUPERADMIN_EMAIL}")
 
-    # 1. Ensure Platform Tenant Exists
-    platform_query = select(TenantORM).where(TenantORM.type == TenantType.PLATFORM)
-    platform_result = await db.execute(platform_query)
-    platform = platform_result.scalars().first()
-
+    # ── Create platform tenant if missing ────────────────────────────────────
     if not platform:
         platform = TenantORM(
             name="Platform",
@@ -63,17 +87,18 @@ async def seed_super_admin(db: AsyncSession) -> None:
         )
         db.add(platform)
         await db.flush()
+        logger.info("Created platform tenant")
 
-    # 2. Check if user already has this role in this tenant
-    assignment_query = select(UserRoleORM).where(
-        UserRoleORM.user_id == user.id,
-        UserRoleORM.role_id == super_admin_role.id,
-        UserRoleORM.tenant_id == platform.id,
+    # ── Assign role — single upsert, ignore if exists ────────────────────────
+    await db.execute(
+        insert(UserRoleORM)
+        .values(
+            user_id=user.id,
+            role_id=super_admin_role.id,
+            tenant_id=platform.id,
+        )
+        .on_conflict_do_nothing()
     )
-    assignment_result = await db.execute(assignment_query)
-    if not assignment_result.scalar_one_or_none():
-        # Assign role to platform tenant
-        db.add(UserRoleORM(user_id=user.id, role_id=super_admin_role.id, tenant_id=platform.id))
-        await db.commit()
-    else:
-        await db.rollback()  # Nothing to do, but good practice to close transaction if opened
+
+    await db.commit()
+    logger.info("Super admin bootstrap complete")

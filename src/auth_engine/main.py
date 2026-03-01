@@ -30,10 +30,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting up AuthEngine...")
 
     await init_db()
+    logger.info("postgres up for AuthEngine...")
     await init_mongo()
+    logger.info("mongo up for AuthEngine...")
     await redis_client.connect()
+    logger.info("redis up for AuthEngine...")
 
-    # Bootstrap system data
+
+    # # Bootstrap system data
     async with AsyncSessionLocal() as session:
         await seed_roles(session)
         await seed_super_admin(session)

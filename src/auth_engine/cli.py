@@ -17,7 +17,7 @@ def get_project_root() -> Path:
 def run(
     host: str = "0.0.0.0",
     port: int = 8000,
-    reload: bool = True,
+    reload: bool = False,
 ) -> None:
     """
     Run the FastAPI server
