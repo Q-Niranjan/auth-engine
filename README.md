@@ -1,34 +1,51 @@
 # AuthEngine
 
-> A production-ready Identity & Access Management (IAM) system built with FastAPI. One auth layer for all your applications — login, roles, permissions, and token validation in one place.
+> A production-ready Identity & Access Management (IAM) system built with FastAPI.
+> Build authentication once — every app connects to AuthEngine to verify users and check permissions.
 
-**[Technical Reference →](TECHNICAL.md)** — architecture, data models, flows, Redis keys, config, and extension guide.
-
-**[Demo Docs](https://authengine-1-0-0.onrender.com/docs)** — Interactive API explorer.
-
-**Tech Stack Deployed:**
-- **FastAPI API**: Deployed on Render
-- **PostgreSQL**: Hosted on Supabase
-- **Redis**: Hosted on Upstash
-- **MongoDB**: Hosted on MongoDB Atlas
+[![Live Docs](https://img.shields.io/badge/Live%20Docs-Swagger%20UI-blue)](https://authengine-1-0-0.onrender.com/docs)
+[![Docker](https://img.shields.io/badge/Docker-qniranjan01%2Fauthengine-blue)](https://hub.docker.com/r/qniranjan01/authengine)
 
 ---
 
-## What It Does
+## How It Works
 
-Instead of building authentication into every service you create, you build it once here. Every app connects to AuthEngine to verify users and check permissions.
+Instead of building login, roles, and permissions into every service you create, you build it once here. Every app connects to AuthEngine to verify users and check permissions.
 
 ```
-                        ┌─────────────────┐
-                        │   AuthEngine    │
-                        │  (Identity Hub) │
-                        └────────┬────────┘
-                                 │
-          ┌──── issues JWT ──────┴────── verifies JWT ────┐
-          ▼                                               ▼
-   User logs in                               YourApp calls /introspect
-   via any method                             "Is this token still valid?"
+  ┌─────────────────────┐        ┌──────────────────────────┐        ┌─────────────────────┐
+  │    LOGIN METHODS    │        │        AUTHENGINE         │        │    YOUR SERVICES    │
+  │─────────────────────│        │    (Identity Hub)         │        │─────────────────────│
+  │  📧 Email+Password  │        │──────────────────────────│        │  ▸ YourCompany      │
+  │  🔵 Google OAuth    │        │  ✓ Issues JWT on login   │        │    web / mobile app │
+  │  ⚫ GitHub OAuth    │        │  ✓ Validates tokens via  │        │                     │
+  │  🪟 Microsoft OAuth │        │    /introspect           │        │  ▸ ServiceA         │
+  │  🔗 Magic Links     │        │  ✓ Manages users, roles  │        │    backend service  │
+  │  🔐 TOTP / MFA      │        │  ✓ Multi-tenant isolation│        │                     │
+  └──────────┬──────────┘        └──────────────────────────┘        └──────────┬──────────┘
+             │                                │                                  │
+             ├── POST /auth/login ───────────►│◄── POST /introspect + X-API-Key ─┤
+             │◄── JWT token ─────────────────┤├── { active, email, permissions }►│
+             │                                │                                  │
 ```
+
+**Your services never hold the JWT secret** — they just ask AuthEngine "is this token valid right now?"
+
+---
+
+## Core Features
+
+| Feature | Description |
+|---------|-------------|
+| **Multiple Login Methods** | Email/password, Google, GitHub, Microsoft OAuth, Magic Links |
+| **TOTP / MFA** | Two-factor auth via Google Authenticator or Authy |
+| **Permission-Based Access Control** | Fine-grained permissions — not just role names |
+| **Multi-Tenancy** | One user, multiple organizations, isolated roles per org |
+| **Token Introspection** | Real-time token validation with instant revocation |
+| **Service API Keys** | Scoped keys for each service calling introspect |
+| **Audit Logging** | Every sensitive action logged to MongoDB |
+| **Session Management** | Redis-backed sessions with per-device revocation |
+| **Auto-Bootstrap** | Seeds roles, permissions, and super admin on first run |
 
 ---
 
@@ -36,67 +53,32 @@ Instead of building authentication into every service you create, you build it o
 
 | Method | Status |
 |--------|--------|
-| Email + Password | Live |
+| Email + Password (Argon2) | Live |
 | Google OAuth 2.0 | Live |
 | GitHub OAuth 2.0 | Live |
 | Microsoft OAuth 2.0 | Live |
 | Magic Links (passwordless) | Live |
-| TOTP / MFA (Google Authenticator) | Live |
-| WebAuthn / Passkeys | Planned |
-
----
-
-## Core Features
-
-**Multiple login methods** — users can sign in with email/password, Google, GitHub, Microsoft, or a one-click magic link. Multiple providers can be linked to one account.
-
-**MFA / Two-Factor Auth** — users can enable TOTP-based MFA via any authenticator app (Google Authenticator, Authy, etc.). Once enabled, login requires a second step after the password.
-
-**Permission-Based Access Control** — roles carry named permissions like `tenant.users.manage`. Your services check permissions, not role names, so access rules stay flexible.
-
-**Multi-Tenancy** — one user can belong to multiple organizations with different roles in each. Organizations are fully isolated from each other.
-
-**Token Introspection** — your services don't hold the JWT secret. They ask AuthEngine "is this token valid?" on each request. When a user logs out, all services see `active: false` instantly.
-
-**Audit Logging** — every login, logout, role change, and sensitive action is logged with actor, resource, and metadata.
-
-**Auto-Bootstrap** — on first startup, all default roles, permissions, and a super admin account are created automatically.
-
----
-
-## How Integration Works
-
-```
-1.  User logs in → AuthEngine issues a JWT
-2.  JWT stored in your frontend
-
-On every protected request to YourApp:
-3.  YourApp sends the JWT to POST /auth/introspect  (with X-API-Key header)
-4.  AuthEngine checks: is the token valid? is the session alive? is the user active?
-5.  Returns { active: true, email, permissions, ... }
-6.  YourApp serves or rejects the request
-```
-
-Your app **never holds the JWT secret** — it just asks AuthEngine in real time.
+| TOTP / MFA | Live |
+| WebAuthn / Passkeys | 🔜 Planned |
 
 ---
 
 ## Quick Start
 
-**Option 1 — Docker Compose (recommended):**
+**Option 1 — Docker Compose (recommended)**
 
 ```bash
 git clone https://github.com/your-org/auth-engine
 cd auth-engine
 
 cp .env.example .env
-# Set SECRET_KEY, JWT_SECRET_KEY, and database passwords
+# Edit .env — set SECRET_KEY, JWT_SECRET_KEY, and database credentials
 
 docker compose up -d
 docker compose exec app auth-engine migrate
 ```
 
-**Option 2 — Manual:**
+**Option 2 — Run manually**
 
 ```bash
 pip install uv
@@ -111,128 +93,61 @@ Visit `http://localhost:8000/docs` for the interactive API explorer.
 
 ---
 
-## Environment Setup
+## Deployed Stack
 
-Minimum required variables in `.env`:
+| Layer | Service |
+|-------|---------|
+| FastAPI App | [Render](https://render.com) |
+| PostgreSQL | [Supabase](https://supabase.com) |
+| MongoDB | [MongoDB Atlas](https://cloud.mongodb.com) |
+| Redis | [Upstash](https://upstash.com) |
 
-```env
-SECRET_KEY=<generate with: openssl rand -hex 32>
-JWT_SECRET_KEY=<generate with: openssl rand -hex 32>
+---
 
-POSTGRES_URL=postgresql+asyncpg://authengine:password@localhost:5432/authengine # pragma: allowlist secret
-MONGODB_URL=mongodb://admin:password@localhost:27017 # pragma: allowlist secret
-REDIS_URL=redis://localhost:6379
+## Role Hierarchy
 
-SUPERADMIN_EMAIL=admin@yourdomain.com
-SUPERADMIN_PASSWORD=YourStrongPassword123!
+```
+Level 100  ██████████  SUPER_ADMIN     — Full platform control (auto-created on first run)
+Level  80  ████████░░  PLATFORM_ADMIN  — Manage all tenants and users
+Level  60  ██████░░░░  TENANT_OWNER    — Full control of their organization
+Level  50  █████░░░░░  TENANT_ADMIN    — Manage members and roles within tenant
+Level  30  ███░░░░░░░  TENANT_MANAGER  — Day-to-day operational management
+Level  10  █░░░░░░░░░  TENANT_USER     — Standard authenticated tenant member
+```
 
-EMAIL_PROVIDER=sendgrid
-EMAIL_PROVIDER_API_KEY=your-api-key
-EMAIL_SENDER=noreply@yourdomain.com
+A role can only assign roles with a **strictly lower** level than their own — privilege escalation is impossible by design.
 
-# Leave blank to disable that OAuth provider
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
-MICROSOFT_CLIENT_ID=
-MICROSOFT_CLIENT_SECRET=
+---
+
+## Integrating a Service
+
+**Step 1 — Create a service API key (Platform Admin):**
+
+```bash
+POST /api/v1/platform/service-keys
+Authorization: Bearer <platform_admin_jwt>
+
+{ "service_name": "YourCompany", "tenant_id": "<tenant_uuid>" }
+```
+
+The response contains `raw_key` — shown only once. Store it securely.
+
+**Step 2 — Validate tokens from your service:**
+
+```python
+async def verify_user(access_token: str) -> dict:
+    response = await httpx.post(
+        "https://authengine-1-0-0.onrender.com/api/v1/auth/introspect",
+        headers={"X-API-Key": settings.AUTHENGINE_API_KEY},
+        json={"token": access_token, "tenant_id": str(YOUR_TENANT_ID)},
+    )
+    data = response.json()
+    if not data["active"]:
+        raise HTTPException(status_code=401)
+    # data contains: user_id, email, permissions, tenant_ids, auth_strategy, ...
+    return data
 ```
 
 ---
 
-## API Overview
-
-**Base URL:** `http://localhost:8000/api/v1`  
-**Interactive docs:** `http://localhost:8000/docs`
-
-### Authentication
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/auth/register` | Register with email + password |
-| `POST` | `/auth/login` | Login — returns tokens or MFA challenge |
-| `POST` | `/auth/logout` | Revoke session |
-| `POST` | `/auth/refresh` | Refresh access token |
-| `POST` | `/auth/password-reset/request` | Request password reset email |
-| `POST` | `/auth/password-reset/confirm` | Confirm new password |
-| `GET`  | `/auth/verify-email` | Verify email address |
-| `POST` | `/auth/magic-link/request` | Send passwordless login link |
-| `GET`  | `/auth/magic-link/verify` | Exchange magic link for tokens |
-| `POST` | `/auth/mfa/complete` | Complete MFA step after login |
-
-### OAuth Social Login
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET`  | `/auth/oauth/{provider}/login` | Start OAuth flow (google / github / microsoft) |
-| `GET`  | `/auth/oauth/{provider}/callback` | OAuth callback — returns tokens |
-| `GET`  | `/auth/oauth/{provider}/link` | Link a provider to an existing account |
-| `GET`  | `/auth/oauth/accounts` | List my linked OAuth providers |
-
-### MFA (Authenticated Users)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST`   | `/me/mfa/enroll` | Start MFA setup — returns QR code URI |
-| `POST`   | `/me/mfa/verify` | Confirm first TOTP code to activate MFA |
-| `DELETE` | `/me/mfa/disable` | Disable MFA (requires valid TOTP code) |
-| `GET`    | `/me/mfa/status` | Check if MFA is enabled |
-
-### Token Introspection
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/auth/introspect` | `X-API-Key` | Validate user token — returns identity + permissions |
-
-### User Context
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/me` | My profile |
-| `GET` | `/me/tenants` | Organizations I belong to |
-| `GET` | `/me/tenants/{id}/permissions` | My permissions in an organization |
-
-### Platform Admin
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET/POST` | `/platform/tenants` | List or create organizations |
-| `GET/PUT/DELETE` | `/platform/tenants/{id}` | Manage an organization |
-| `GET` | `/platform/users` | List all users |
-| `POST/DELETE` | `/platform/roles/users/{id}/roles` | Assign or remove platform roles |
-| `POST` | `/platform/service-keys` | Create an API key for a service |
-| `DELETE` | `/platform/service-keys/{id}` | Revoke a service API key |
-| `GET` | `/platform/audit` | Platform-wide audit logs |
-
-### Tenant Management
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET/POST` | `/tenants/users/{tenant_id}/users` | List or invite users |
-| `DELETE` | `/tenants/users/{tenant_id}/users/{uid}` | Remove user from organization |
-| `POST/DELETE` | `/tenants/roles/{tenant_id}/users/{uid}/roles` | Assign or remove tenant roles |
-| `GET` | `/tenants/audit/{tenant_id}/audit-logs` | Tenant audit logs |
-
----
-
-## Roles
-
-| Role | Scope | Can Do |
-|------|-------|--------|
-| `SUPER_ADMIN` | Platform | Everything. Auto-created on first run. |
-| `PLATFORM_ADMIN` | Platform | Manage all tenants, users, and service keys |
-| `TENANT_OWNER` | Tenant | Full control of their organization |
-| `TENANT_ADMIN` | Tenant | Manage members and roles |
-| `TENANT_MANAGER` | Tenant | Day-to-day operations |
-| `TENANT_USER` | Tenant | Standard member access |
-
----
-
-## License
-
-MIT
-
----
-
-> For architecture deep-dives, data models, Redis key patterns, and extension guides see **[TECHNICAL.md](TECHNICAL.md)**.
+> For architecture diagrams, data models, full API reference, configuration, and extension guides — see **[TECHNICAL.md](TECHNICAL.md)**.
