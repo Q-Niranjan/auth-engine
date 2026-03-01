@@ -68,7 +68,9 @@ async def login(
     session_service = SessionService(redis_conn)
 
     try:
-        user = await auth_service.authenticate_user(login_data)
+        user = await auth_service.authenticate_user(
+            login_data, ip_address=request.client.host if request.client else None
+        )
 
         if user.mfa_enabled:
             totp_svc = TOTPService(db, redis_conn)
