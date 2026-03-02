@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
+from auth_engine.api.v1.oidc.discovery import well_known_router
 from auth_engine.api.v1.router import api_router
 from auth_engine.core.bootstrap import seed_super_admin
 from auth_engine.core.config import settings
@@ -36,7 +37,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await redis_client.connect()
     logger.info("redis up for AuthEngine...")
 
-
     # # Bootstrap system data
     async with AsyncSessionLocal() as session:
         await seed_roles(session)
@@ -67,6 +67,9 @@ app = FastAPI(
 
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+# OIDC spec requires discovery at /.well-known/ — mounted at the app root (no API prefix)
+app.include_router(well_known_router, prefix="/.well-known", tags=["oidc"])
 
 if __name__ == "__main__":
     uvicorn.run(

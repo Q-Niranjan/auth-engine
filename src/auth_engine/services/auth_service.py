@@ -80,7 +80,9 @@ class AuthService:
         if user.phone_number:
             await self.initiate_phone_verification(user, tenant_id=tenant_id)
 
-    async def authenticate_user(self, login_data: UserLogin, ip_address: str | None = None) -> UserORM:
+    async def authenticate_user(
+        self, login_data: UserLogin, ip_address: str | None = None
+    ) -> UserORM:
         user = await self.user_repo.get_by_email(login_data.email)
         if not user:
             raise ValueError("Invalid email or password")

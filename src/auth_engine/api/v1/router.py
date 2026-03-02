@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from auth_engine.api.v1 import me, platform, public, system, tenants
+from auth_engine.api.v1 import me, oidc, platform, public, system, tenants
 
 api_router = APIRouter()
 
@@ -39,3 +39,10 @@ api_router.include_router(
 api_router.include_router(tenants.users.router, prefix="/tenants/users", tags=["tenant-users"])
 api_router.include_router(tenants.roles.router, prefix="/tenants/roles", tags=["tenant-roles"])
 api_router.include_router(tenants.audit.router, prefix="/tenants/audit", tags=["tenant-audit"])
+
+
+api_router.include_router(oidc.authorize.router, prefix="/oidc", tags=["oidc"])
+api_router.include_router(oidc.discovery.router, prefix="/oidc", tags=["oidc"])
+api_router.include_router(oidc.token.router, prefix="/oidc", tags=["oidc"])
+api_router.include_router(oidc.userinfo.router, prefix="/oidc", tags=["oidc"])
+api_router.include_router(oidc.register.router, prefix="/oidc", tags=["oidc"])
