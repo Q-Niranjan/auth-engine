@@ -47,4 +47,3 @@ class TenantAuthConfigORM(Base):
         onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
-

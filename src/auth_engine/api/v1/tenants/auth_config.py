@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.deps import get_db
 from auth_engine.api.dependencies.rbac import require_permission
-from auth_engine.models import TenantAuthConfigORM, TenantORM, UserORM
+from auth_engine.models import TenantAuthConfigORM, UserORM
 from auth_engine.schemas.tenant_auth_config import (
     VALID_AUTH_METHODS,
     TenantAuthConfigResponse,
@@ -23,13 +23,9 @@ from auth_engine.schemas.tenant_auth_config import (
 router = APIRouter()
 
 
-async def _get_or_404(
-    db: AsyncSession, tenant_id: uuid.UUID
-) -> TenantAuthConfigORM:
+async def _get_or_404(db: AsyncSession, tenant_id: uuid.UUID) -> TenantAuthConfigORM:
     """Return the config or raise 404."""
-    query = select(TenantAuthConfigORM).where(
-        TenantAuthConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantAuthConfigORM).where(TenantAuthConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     config = result.scalar_one_or_none()
     if not config:

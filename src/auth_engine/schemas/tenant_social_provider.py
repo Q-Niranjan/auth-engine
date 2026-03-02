@@ -48,7 +48,9 @@ class TenantSocialProviderResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
     provider: str
-    client_id: str  # the encrypted value is decrypted only internally; here we show the stored value
+    client_id: (
+        str  # the encrypted value is decrypted only internally; here we show the stored value
+    )
     client_secret_prefix: str
     redirect_uri: str | None = None
     oidc_discovery_url: str | None = None

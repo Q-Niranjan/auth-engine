@@ -10,9 +10,7 @@ from auth_engine.core.postgres import Base
 
 class TenantSocialProviderORM(Base):
     __tablename__ = "tenant_social_providers"
-    __table_args__ = (
-        UniqueConstraint("tenant_id", "provider", name="uq_tenant_social_provider"),
-    )
+    __table_args__ = (UniqueConstraint("tenant_id", "provider", name="uq_tenant_social_provider"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
@@ -48,4 +46,3 @@ class TenantSocialProviderORM(Base):
         onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
-

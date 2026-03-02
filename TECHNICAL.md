@@ -123,105 +123,19 @@ Repository Layer        ← translates to DB queries
 
 ```
 auth-engine/
-├── alembic/
-│   └── versions/
-│       ├── e0f528e68aa9_add_all_tables.py
-│       ├── 03efaee5723b_add_sms_model.py
-│       ├── a48f25e886fa_include_utc_in_date_time.py
-│       └── b1c2d3e4f5a6_add_mfa_fields.py
+├── alembic/                 # Database migrations (PostgreSQL)
 ├── src/
 │   └── auth_engine/
-│       ├── api/
-│       │   ├── dependencies/
-│       │   │   ├── auth_deps.py           # get_current_user, get_current_active_user
-│       │   │   ├── deps.py                # get_db, get_audit_service
-│       │   │   └── rbac.py                # require_permission, check_platform_permission
-│       │   └── v1/
-│       │       ├── me/
-│       │       │   ├── endpoints.py       # /me, /me/tenants, /me/tenants/{id}/permissions
-│       │       │   └── mfa.py             # /me/mfa/enroll, /verify, /disable, /status
-│       │       ├── public/
-│       │       │   ├── auth.py            # register, login, logout, refresh, verify, reset
-│       │       │   ├── oauth.py           # OAuth login/callback/link/accounts
-│       │       │   ├── magic_link.py      # /auth/magic-link/request, /verify
-│       │       │   ├── mfa.py             # /auth/mfa/complete
-│       │       │   └── introspect.py      # POST /auth/introspect
-│       │       ├── platform/
-│       │       │   ├── tenant.py
-│       │       │   ├── user.py
-│       │       │   ├── roles.py
-│       │       │   ├── audit.py
-│       │       │   └── service_keys.py
-│       │       ├── tenants/
-│       │       │   ├── users.py
-│       │       │   ├── roles.py
-│       │       │   └── audit.py
-│       │       ├── system/
-│       │       │   └── system.py          # /health
-│       │       └── router.py
-│       ├── auth_strategies/
-│       │   ├── base.py                    # BaseAuthStrategy, TokenBasedStrategy, PasswordBasedStrategy
-│       │   ├── email_password.py
-│       │   ├── magic_link.py
-│       │   ├── totp.py
-│       │   └── oauth/
-│       │       ├── base_oauth.py
-│       │       ├── google.py
-│       │       ├── github.py              # handles private emails
-│       │       ├── microsoft.py           # personal + Azure AD
-│       │       └── factory.py
-│       ├── core/
-│       │   ├── config.py                  # Pydantic Settings — all env vars typed
-│       │   ├── templates.py               # Jinja2 environment (PackageLoader)
-│       │   ├── exceptions.py
-│       │   ├── health.py
-│       │   ├── mongodb.py
-│       │   ├── postgres.py
-│       │   ├── rbac_seed.py
-│       │   ├── redis.py
-│       │   └── security.py                # SecurityUtils (Argon2, Fernet), TokenManager (JWT)
-│       ├── models/
-│       │   ├── user.py                    # includes mfa_enabled, mfa_secret
-│       │   ├── oauth_account.py
-│       │   ├── role.py
-│       │   ├── permission.py
-│       │   ├── role_permission.py
-│       │   ├── user_role.py
-│       │   ├── tenant.py
-│       │   ├── service_api_key.py
-│       │   └── email_config.py
-│       ├── repositories/
-│       │   ├── postgres_repo.py           # Generic async SQLAlchemy CRUD
-│       │   ├── user_repo.py
-│       │   ├── oauth_repo.py
-│       │   ├── service_api_key_repo.py
-│       │   ├── mongo_repo.py
-│       │   └── redis_repo.py
-│       ├── schemas/
-│       │   ├── user.py
-│       │   ├── mfa.py
-│       │   ├── magic_link.py
-│       │   ├── oauth.py
-│       │   ├── rbac.py
-│       │   ├── tenant.py
-│       │   └── introspect.py
-│       ├── services/
-│       │   ├── auth_service.py
-│       │   ├── oauth_service.py
-│       │   ├── introspect_service.py
-│       │   ├── totp_service.py
-│       │   ├── magic_link_service.py
-│       │   ├── session_service.py
-│       │   ├── role_service.py
-│       │   ├── permission_service.py
-│       │   ├── tenant_service.py
-│       │   ├── user_service.py
-│       │   └── audit_service.py
-│       ├── templates/
-│       │   ├── email/                     # Branded HTML templates
-│       │   └── sms/                       # SMS text templates
-│       └── main.py
-└── tests/
+│       ├── api/             # FastAPI routers, dependencies, and PBAC guards
+│       ├── auth_strategies/ # Pluggable authenticators (OAuth, Magic Link, WebAuthn, TOTP)
+│       ├── core/            # Config, security utils, DB connections, Redis, exceptions
+│       ├── models/          # SQLAlchemy 2.0 ORM mappings
+│       ├── repositories/    # Database access layer (Postgres, Mongo, Redis)
+│       ├── schemas/         # Pydantic models for request/response validation
+│       ├── services/        # Business logic containing all authentication workflows
+│       ├── templates/       # Jinja2 email and SMS templates
+│       └── main.py          # FastAPI application entry point
+└── tests/                   # Pytest suite
 ```
 
 ---
@@ -441,6 +355,18 @@ All tenant-scoped endpoints include `tenant_id` in the URL path, and all permiss
 | `POST` | `/auth/magic-link/request` | Send passwordless login link |
 | `GET`  | `/auth/magic-link/verify` | Exchange magic link for tokens |
 | `POST` | `/auth/mfa/complete` | Complete MFA step after primary login |
+| `POST` | `/auth/select-tenant` | Exchange a token for a tenant-scoped session |
+
+### WebAuthn (Passkeys)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST`   | `/auth/webauthn/register/begin` | Generates a passkey registration challenge |
+| `POST`   | `/auth/webauthn/register/complete` | Verifies and persists the new passkey |
+| `POST`   | `/auth/webauthn/authenticate/begin` | Generates a passkey authentication challenge |
+| `POST`   | `/auth/webauthn/authenticate/complete`| Verifies assertion and issues tokens |
+| `GET`    | `/me/webauthn/credentials` | List user's registered passkeys |
+| `DELETE` | `/me/webauthn/credentials/{id}` | Remove a passkey |
 
 ### OAuth Social Login
 
@@ -494,6 +420,10 @@ All tenant-scoped endpoints include `tenant_id` in the URL path, and all permiss
 | `DELETE` | `/tenants/users/{tenant_id}/users/{uid}` | Remove user from organization |
 | `POST/DELETE` | `/tenants/roles/{tenant_id}/users/{uid}/roles` | Assign or remove tenant roles |
 | `GET` | `/tenants/audit/{tenant_id}/audit-logs` | Tenant audit logs |
+| `GET/PUT` | `/tenants/{tenant_id}/auth-config` | View or update tenant auth methods/policies |
+| `GET/POST` | `/tenants/{tenant_id}/social-providers` | Manage SSO providers (SAML/OpenID) per tenant |
+| `GET/PUT` | `/tenants/{tenant_id}/email-config` | Tenant custom email SMTP/API settings |
+| `GET/PUT` | `/tenants/{tenant_id}/sms-config` | Tenant custom SMS delivery settings |
 
 ---
 
@@ -698,6 +628,8 @@ Indexes: `actor_id`, `tenant_id`, `created_at`, `(tenant_id, created_at DESC)`.
 | `mfa:pending:{user_id}` | 5 min | Pending MFA after primary auth |
 | `ratelimit:{ip}:{minute}` | 60 sec | Rate limiting |
 | `otp:phone:{user_id}` | 10 min | Phone verification OTPs |
+| `webauthn:reg:{user_id}` | 5 min | WebAuthn registration challenge |
+| `webauthn:auth:{challenge_hex}` | 5 min | WebAuthn authentication challenge |
 
 ---
 

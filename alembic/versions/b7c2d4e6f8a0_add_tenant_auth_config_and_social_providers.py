@@ -9,8 +9,9 @@ Create Date: 2026-03-03 03:00:00.000000
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects.postgresql import UUID
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b7c2d4e6f8a0"  # pragma: allowlist secret
@@ -89,9 +90,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.UniqueConstraint(
-            "tenant_id", "provider", name="uq_tenant_social_provider"
-        ),
+        sa.UniqueConstraint("tenant_id", "provider", name="uq_tenant_social_provider"),
     )
 
     # 3. ALTER TABLE oidc_clients — add tenant_id
@@ -104,9 +103,7 @@ def upgrade() -> None:
             nullable=True,
         ),
     )
-    op.create_index(
-        "ix_oidc_clients_tenant_id", "oidc_clients", ["tenant_id"]
-    )
+    op.create_index("ix_oidc_clients_tenant_id", "oidc_clients", ["tenant_id"])
 
     # 4. ALTER TABLE tenant_sms_configs — add account_sid
     op.add_column(

@@ -27,6 +27,7 @@ dependencies = [
     "jinja2>=3.1.2",
     "python-multipart>=0.0.22",
     "cryptography>=46.0.5",
+    "webauthn>=2.7.1",
 ]
 
 [tool.ruff]
