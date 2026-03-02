@@ -22,14 +22,18 @@ Instead of building login, roles, and permissions into every service you create,
   │  🪟 Microsoft OAuth │        │    /introspect           │        │  ▸ ServiceA         │
   │  🔗 Magic Links     │        │  ✓ Manages users, roles  │        │    backend service  │
   │  🔐 TOTP / MFA      │        │  ✓ Multi-tenant isolation│        │                     │
+  │  🌐 WebAuthn API    │        │  ✓ OIDC Provider Flows   │        │  ▸ Third-Party Apps │
   └──────────┬──────────┘        └──────────────────────────┘        └──────────┬──────────┘
              │                                │                                  │
              ├── POST /auth/login ───────────►│◄── POST /introspect + X-API-Key ─┤
              │◄── JWT token ─────────────────┤├── { active, email, permissions }►│
              │                                │                                  │
+             │           (Or OIDC)            │                                  │
+             ├── GET /oidc/authorize ────────►│◄── OIDC /token Auth Code Flow ───┤
+             │◄── Auth Code / ID Token ──────┤├── Standard OIDC Validation ─────►│
 ```
 
-**Your services never hold the JWT secret** — they just ask AuthEngine "is this token valid right now?"
+**Your services never hold the JWT secret** — they just ask AuthEngine "is this token valid right now?" or use standard OIDC flows.
 
 ---
 
@@ -37,8 +41,10 @@ Instead of building login, roles, and permissions into every service you create,
 
 | Feature | Description |
 |---------|-------------|
+| **OIDC Provider** | Full OpenID Connect support (Discovery, Auth Code, Dynamic Registration) |
 | **Multiple Login Methods** | Email/password, Google, GitHub, Microsoft OAuth, Magic Links |
 | **TOTP / MFA** | Two-factor auth via Google Authenticator or Authy |
+| **WebAuthn / Passkeys** | Passwordless login via biometric/hardware keys |
 | **Permission-Based Access Control** | Fine-grained permissions — not just role names |
 | **Multi-Tenancy** | One user, multiple organizations, isolated roles per org |
 | **Token Introspection** | Real-time token validation with instant revocation |
@@ -59,7 +65,7 @@ Instead of building login, roles, and permissions into every service you create,
 | Microsoft OAuth 2.0 | Live |
 | Magic Links (passwordless) | Live |
 | TOTP / MFA | Live |
-| WebAuthn / Passkeys | 🔜 Planned |
+| WebAuthn / Passkeys | Live |
 
 ---
 
@@ -151,3 +157,4 @@ async def verify_user(access_token: str) -> dict:
 ---
 
 > For architecture diagrams, data models, full API reference, configuration, and extension guides — see **[TECHNICAL.md](TECHNICAL.md)**.
+> For OpenID Connect (OIDC) provider capabilities and integration, see **[OIDC.md](OIDC.md)**.

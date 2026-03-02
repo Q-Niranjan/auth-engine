@@ -77,3 +77,9 @@ class UserORM(Base):
         lazy="selectin",
         cascade="all, delete-orphan",
     )
+
+    webauthn_credentials = relationship(
+        "WebAuthnCredentialORM",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

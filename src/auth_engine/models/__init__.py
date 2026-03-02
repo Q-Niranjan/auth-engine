@@ -11,6 +11,7 @@ from .tenant_auth_config import TenantAuthConfigORM
 from .tenant_social_provider import TenantSocialProviderORM
 from .user import UserORM
 from .user_role import UserRoleORM
+from .webauthn_credential import WebAuthnCredentialORM
 
 __all__ = [
     "UserORM",
@@ -26,4 +27,5 @@ __all__ = [
     "OAuthAccountORM",
     "ServiceApiKeyORM",
     "OIDCClientORM",
+    "WebAuthnCredentialORM",
 ]

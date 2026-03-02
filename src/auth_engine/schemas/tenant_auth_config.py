@@ -7,7 +7,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ── Default values ────────────────────────────────────────────────────────────
 
 DEFAULT_ALLOWED_METHODS = [

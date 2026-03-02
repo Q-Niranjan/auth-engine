@@ -59,9 +59,7 @@ async def list_social_providers(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.view")),
 ) -> list[TenantSocialProviderResponse]:
-    query = select(TenantSocialProviderORM).where(
-        TenantSocialProviderORM.tenant_id == tenant_id
-    )
+    query = select(TenantSocialProviderORM).where(TenantSocialProviderORM.tenant_id == tenant_id)
     result = await db.execute(query)
     rows = result.scalars().all()
     return [_to_response(r) for r in rows]

@@ -12,6 +12,16 @@ api_router.include_router(system.system.router, tags=["system"])
 api_router.include_router(public.auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(public.magic_link.router, prefix="/auth/magic-link", tags=["auth"])
 api_router.include_router(public.mfa.router, prefix="/auth/mfa", tags=["mfa"])
+api_router.include_router(
+    public.webauthn.router,
+    prefix="/auth/webauthn",
+    tags=["webauthn"],
+)
+api_router.include_router(
+    me.webauthn.router,
+    prefix="/me/webauthn",
+    tags=["webauthn"],
+)
 api_router.include_router(public.oauth.router, prefix="/auth/oauth", tags=["oauth"])
 api_router.include_router(public.select_tenant.router, prefix="/auth", tags=["auth-tenant"])
 

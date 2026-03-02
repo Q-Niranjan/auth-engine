@@ -71,9 +71,7 @@ async def get_sms_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.view")),
 ) -> TenantSMSConfigResponse | TenantSMSConfigFallbackResponse:
-    query = select(TenantSMSConfigORM).where(
-        TenantSMSConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     row = result.scalar_one_or_none()
 
@@ -99,9 +97,7 @@ async def create_sms_config(
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> TenantSMSConfigResponse:
     # Check existing
-    query = select(TenantSMSConfigORM).where(
-        TenantSMSConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -134,9 +130,7 @@ async def update_sms_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> TenantSMSConfigResponse:
-    query = select(TenantSMSConfigORM).where(
-        TenantSMSConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     row = result.scalar_one_or_none()
     if not row:
@@ -171,9 +165,7 @@ async def delete_sms_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> None:
-    query = select(TenantSMSConfigORM).where(
-        TenantSMSConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     row = result.scalar_one_or_none()
     if not row:
@@ -197,9 +189,7 @@ async def test_sms_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> SMSConfigTestResponse:
-    query = select(TenantSMSConfigORM).where(
-        TenantSMSConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     row = result.scalar_one_or_none()
     if not row:

@@ -6,7 +6,6 @@ to get a tenant-scoped token that includes permissions and session TTL
 specific to that tenant.
 """
 
-import uuid
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -49,12 +48,9 @@ async def select_tenant(
         )
 
     # 2. Verify the user has a role in this tenant
-    role_query = (
-        select(UserRoleORM)
-        .where(
-            UserRoleORM.user_id == current_user.id,
-            UserRoleORM.tenant_id == tenant_id,
-        )
+    role_query = select(UserRoleORM).where(
+        UserRoleORM.user_id == current_user.id,
+        UserRoleORM.tenant_id == tenant_id,
     )
     role_result = await db.execute(role_query)
     user_roles = list(role_result.unique().scalars().all())
@@ -66,9 +62,7 @@ async def select_tenant(
         )
 
     # 3. Load tenant auth config
-    config_query = select(TenantAuthConfigORM).where(
-        TenantAuthConfigORM.tenant_id == tenant_id
-    )
+    config_query = select(TenantAuthConfigORM).where(TenantAuthConfigORM.tenant_id == tenant_id)
     auth_config_result = await db.execute(config_query)
     auth_config = auth_config_result.scalar_one_or_none()
 
@@ -105,9 +99,7 @@ async def select_tenant(
 
     expires_delta = timedelta(seconds=session_ttl)
 
-    access_token = token_manager.create_access_token(
-        data=token_data, expires_delta=expires_delta
-    )
+    access_token = token_manager.create_access_token(data=token_data, expires_delta=expires_delta)
     refresh_token = token_manager.create_refresh_token(
         data={
             "sub": str(current_user.id),

@@ -70,9 +70,7 @@ async def get_email_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.view")),
 ) -> TenantEmailConfigResponse | TenantEmailConfigFallbackResponse:
-    query = select(TenantEmailConfigORM).where(
-        TenantEmailConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantEmailConfigORM).where(TenantEmailConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     row = result.scalar_one_or_none()
 
@@ -98,9 +96,7 @@ async def create_email_config(
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> TenantEmailConfigResponse:
     # Check existing
-    query = select(TenantEmailConfigORM).where(
-        TenantEmailConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantEmailConfigORM).where(TenantEmailConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -132,9 +128,7 @@ async def update_email_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> TenantEmailConfigResponse:
-    query = select(TenantEmailConfigORM).where(
-        TenantEmailConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantEmailConfigORM).where(TenantEmailConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     row = result.scalar_one_or_none()
     if not row:
@@ -167,9 +161,7 @@ async def delete_email_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> None:
-    query = select(TenantEmailConfigORM).where(
-        TenantEmailConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantEmailConfigORM).where(TenantEmailConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     row = result.scalar_one_or_none()
     if not row:
@@ -193,9 +185,7 @@ async def test_email_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> EmailConfigTestResponse:
-    query = select(TenantEmailConfigORM).where(
-        TenantEmailConfigORM.tenant_id == tenant_id
-    )
+    query = select(TenantEmailConfigORM).where(TenantEmailConfigORM.tenant_id == tenant_id)
     result = await db.execute(query)
     row = result.scalar_one_or_none()
     if not row:

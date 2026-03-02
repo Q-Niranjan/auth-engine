@@ -66,6 +66,11 @@ class RateLimitExceededError(AuthEngineException):
         )
 
 
+class NotFoundError(AuthEngineException):
+    def __init__(self, message: str = "Resource not found"):
+        super().__init__(message, error_code="NOT_FOUND")
+
+
 # HTTP Exception converters
 def convert_to_http_exception(exc: AuthEngineException) -> HTTPException:
     status_map = {
@@ -79,6 +84,7 @@ def convert_to_http_exception(exc: AuthEngineException) -> HTTPException:
         "RATE_LIMIT_EXCEEDED": status.HTTP_429_TOO_MANY_REQUESTS,
         "SESSION_EXPIRED": status.HTTP_401_UNAUTHORIZED,
         "MAX_SESSIONS_EXCEEDED": status.HTTP_403_FORBIDDEN,
+        "NOT_FOUND": status.HTTP_404_NOT_FOUND,
     }
 
     status_code = status_map.get(exc.error_code or "", status.HTTP_500_INTERNAL_SERVER_ERROR)
