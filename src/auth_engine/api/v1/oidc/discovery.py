@@ -62,50 +62,48 @@ def _build_discovery_document(request: Request) -> dict:
         # ── REQUIRED ──────────────────────────────────────────────────────
         # Must be identical to the iss claim in every ID Token issued
         "issuer": settings.JWT_ISSUER,
-
         # REQUIRED: OAuth 2.0 Authorization Endpoint
         "authorization_endpoint": f"{api}/oidc/authorize",
-
         # REQUIRED (unless implicit-only): Token Endpoint
         "token_endpoint": f"{api}/oidc/token",
-
         # REQUIRED: URL of the JWK Set document (signing keys)
         "jwks_uri": f"{base}/.well-known/jwks.json",
-
         "subject_types_supported": ["public", "pairwise"],
-
         # REQUIRED: JWS alg values for ID Token signing
         # NOTE: RS256 MUST be listed per spec; we use HS256 (symmetric).
         # Migrate to RS256 for production multi-tenant deployments.
-        "id_token_signing_alg_values_supported": ["RS256", settings.JWT_ALGORITHM] if OIDC_JWK else [settings.JWT_ALGORITHM],
-
+        "id_token_signing_alg_values_supported": ["RS256", settings.JWT_ALGORITHM]
+        if OIDC_JWK
+        else [settings.JWT_ALGORITHM],
         # REQUIRED: response_type values supported
         "response_types_supported": ["code"],
-
         # ── RECOMMENDED ───────────────────────────────────────────────────
-
         # RECOMMENDED: UserInfo Endpoint
         "userinfo_endpoint": f"{api}/oidc/userinfo",
-
         # RECOMMENDED: OAuth 2.0 scopes (MUST include "openid")
         "scopes_supported": ["openid", "profile", "email"],
-
         # RECOMMENDED: Claim names the OP may supply values for
         "claims_supported": [
-            "sub", "iss", "aud", "exp", "iat", "auth_time",
-            "nonce", "email", "email_verified",
-            "name", "given_name", "family_name",
-            "picture", "updated_at",
+            "sub",
+            "iss",
+            "aud",
+            "exp",
+            "iat",
+            "auth_time",
+            "nonce",
+            "email",
+            "email_verified",
+            "name",
+            "given_name",
+            "family_name",
+            "picture",
+            "updated_at",
         ],
-
         # ── OPTIONAL ──────────────────────────────────────────────────────
-
         # response_mode values supported
         "response_modes_supported": ["query"],
-
         # Grant types (default is ["authorization_code","implicit"] when omitted)
         "grant_types_supported": ["authorization_code", "refresh_token"],
-
         # Token Endpoint client authentication methods.
         # Spec options: client_secret_post | client_secret_basic |
         #               client_secret_jwt  | private_key_jwt
@@ -113,33 +111,24 @@ def _build_discovery_document(request: Request) -> dict:
         "token_endpoint_auth_methods_supported": [
             "client_secret_basic",
             "client_secret_post",
-            "private_key_jwt"
+            "private_key_jwt",
         ],
-
         # PKCE — only S256 supported ("plain" is NOT recommended by spec)
         "code_challenge_methods_supported": ["S256"],
-
         # UserInfo returns plain JSON (not a signed JWT), alg = "none"
         "userinfo_signing_alg_values_supported": ["RS256", "none"] if OIDC_JWK else ["none"],
-
         # Session termination endpoint
         "end_session_endpoint": f"{api}/auth/logout",
-
         # Token introspection (RFC 7662)
         "introspection_endpoint": f"{api}/platform/service-keys/introspect",
-
         # OP does not support the "claims" request parameter
         "claims_parameter_supported": False,
-
         # OP does not support JAR (JWT-Secured Authorization Requests)
         "request_parameter_supported": False,
-
         # OP does not support request_uri parameter
         "request_uri_parameter_supported": False,
-
         # Human-readable developer documentation
         "service_documentation": f"{base}/docs",
-
         # Dynamic Client Registration endpoint
         "registration_endpoint": f"{api}/oidc/register",
     }
@@ -151,27 +140,30 @@ def _build_discovery_document(request: Request) -> dict:
 def _build_jwks() -> dict:
     """Build the JWKS document."""
     keys = []
-    
+
     # RS256 Key (Public Key)
     if OIDC_JWK:
         keys.append(OIDC_JWK)
-    
+
     # Stable key ID derived from secret — never exposes the secret itself
     kid = hashlib.sha256(settings.JWT_SECRET_KEY[:8].encode()).hexdigest()[:16]
-    keys.append({
-        "kty": "oct",               # symmetric key type
-        "use": "sig",               # signing usage
-        "alg": settings.JWT_ALGORITHM,
-        "kid": kid,
-        # NOTE: HS256 is symmetric — the raw key is NOT published here.
-        # For clients that want local verification, migrate to RS256
-        # and return the RSA public key (n, e) instead.
-    })
-    
+    keys.append(
+        {
+            "kty": "oct",  # symmetric key type
+            "use": "sig",  # signing usage
+            "alg": settings.JWT_ALGORITHM,
+            "kid": kid,
+            # NOTE: HS256 is symmetric — the raw key is NOT published here.
+            # For clients that want local verification, migrate to RS256
+            # and return the RSA public key (n, e) instead.
+        }
+    )
+
     return {"keys": keys}
 
 
 # ── Shared view functions ─────────────────────────────────────────────────────
+
 
 async def _openid_configuration_view(request: Request) -> JSONResponse:
     return JSONResponse(
@@ -188,6 +180,7 @@ async def _jwks_view(request: Request) -> JSONResponse:
 
 
 # ── /.well-known/ routes (spec-required, mounted at app root) ─────────────────
+
 
 @well_known_router.get(
     "/openid-configuration",
@@ -206,7 +199,9 @@ async def well_known_openid_configuration(request: Request) -> JSONResponse:
 @well_known_router.get(
     "/jwks.json",
     summary="JSON Web Key Set",
-    description="Public JWKS at /.well-known/jwks.json. Used by clients to verify id_token signatures.",
+    description=(
+        "Public JWKS at /.well-known/jwks.json. " "Used by clients to verify id_token signatures."
+    ),
     tags=["oidc"],
 )
 async def well_known_jwks(request: Request) -> JSONResponse:
@@ -214,6 +209,7 @@ async def well_known_jwks(request: Request) -> JSONResponse:
 
 
 # ── /oidc/ aliases (mounted under /api/v1/oidc, for /docs visibility) ────────
+
 
 @router.get(
     "/openid-configuration",

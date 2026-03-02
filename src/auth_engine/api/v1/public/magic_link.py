@@ -79,6 +79,7 @@ async def request_magic_link(
     try:
         await svc.request_magic_link(
             email=str(body.email),
+            tenant_id=body.tenant_id,
             ip_address=ip,
         )
     except Exception as exc:

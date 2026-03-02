@@ -21,7 +21,6 @@ import json
 import logging
 import secrets
 import time
-import uuid
 from typing import Annotated
 from urllib.parse import urlencode
 
@@ -43,6 +42,7 @@ AUTH_CODE_TTL = 600
 
 
 # ── Template helpers ─────────────────────────────────────────────────────────
+
 
 def _render_login(
     *,
@@ -79,6 +79,7 @@ def _render_error(message: str) -> str:
 
 # ── Authorization endpoint ────────────────────────────────────────────────────
 
+
 @router.get(
     "/authorize",
     response_model=None,
@@ -95,7 +96,9 @@ async def authorize(
     response_type: Annotated[str, Query(description="Must be 'code'")] = "code",
     client_id: Annotated[str, Query(description="Your app's client identifier")] = "",
     redirect_uri: Annotated[str, Query(description="Where to send the user after login")] = "",
-    scope: Annotated[str, Query(description="Space-separated scopes: openid profile email")] = "openid",
+    scope: Annotated[
+        str, Query(description="Space-separated scopes: openid profile email")
+    ] = "openid",
     state: Annotated[str | None, Query(description="CSRF state — echoed back in redirect")] = None,
     nonce: Annotated[str | None, Query(description="Replay protection for id_token")] = None,
     code_challenge: Annotated[str | None, Query(description="PKCE S256 code challenge")] = None,
@@ -158,6 +161,7 @@ async def authorize(
 
 # ── Login form submission ─────────────────────────────────────────────────────
 
+
 @router.post(
     "/authorize/submit",
     response_model=None,
@@ -181,14 +185,14 @@ async def authorize_submit(
 
     form = await request.form()
 
-    email              = str(form.get("email", ""))
-    password           = str(form.get("password", ""))
-    client_id          = str(form.get("client_id", ""))
-    redirect_uri       = str(form.get("redirect_uri", ""))
-    scope              = str(form.get("scope", "openid"))
-    state              = str(form.get("state", ""))
-    nonce              = str(form.get("nonce", ""))
-    code_challenge     = str(form.get("code_challenge", ""))
+    email = str(form.get("email", ""))
+    password = str(form.get("password", ""))
+    client_id = str(form.get("client_id", ""))
+    redirect_uri = str(form.get("redirect_uri", ""))
+    scope = str(form.get("scope", "openid"))
+    state = str(form.get("state", ""))
+    nonce = str(form.get("nonce", ""))
+    code_challenge = str(form.get("code_challenge", ""))
     code_challenge_method = str(form.get("code_challenge_method", ""))
 
     def show_error(msg: str) -> HTMLResponse:
@@ -222,9 +226,7 @@ async def authorize_submit(
                 return show_error("Invalid email or password.")
 
             if user.status != UserStatus.ACTIVE:
-                return show_error(
-                    f"Account is {user.status.value}. Please contact support."
-                )
+                return show_error(f"Account is {user.status.value}. Please contact support.")
 
             code = await _issue_authorization_code(
                 redis_conn=redis_conn,
@@ -236,17 +238,18 @@ async def authorize_submit(
                 code_challenge=code_challenge or None,
             )
 
-            logger.info(
-                f"[oidc/authorize] Code issued: user={user.id} client={client_id}"
-            )
+            logger.info(f"[oidc/authorize] Code issued: user={user.id} client={client_id}")
             return _redirect_with_code(redirect_uri, code, state or None)
 
     except Exception as exc:
         logger.exception(f"[oidc/authorize/submit] Unexpected error: {exc}")
         return show_error("An unexpected error occurred. Please try again.")
 
+    return show_error("Internal server error")
+
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
+
 
 async def _issue_authorization_code(
     *,
@@ -273,9 +276,7 @@ async def _issue_authorization_code(
     return code
 
 
-def _redirect_with_code(
-    redirect_uri: str, code: str, state: str | None
-) -> RedirectResponse:
+def _redirect_with_code(redirect_uri: str, code: str, state: str | None) -> RedirectResponse:
     """Redirect back to client with ?code= (and ?state= if provided)."""
     params: dict[str, str] = {"code": code}
     if state:

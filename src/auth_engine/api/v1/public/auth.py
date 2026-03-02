@@ -72,6 +72,44 @@ async def login(
             login_data, ip_address=request.client.host if request.client else None
         )
 
+        # ── Tenant auth config gate ──────────────────────────────────────
+        if login_data.tenant_id:
+            from sqlalchemy import select as sa_select
+
+            from auth_engine.models import TenantAuthConfigORM
+
+            config_q = sa_select(TenantAuthConfigORM).where(
+                TenantAuthConfigORM.tenant_id == login_data.tenant_id
+            )
+            config_result = await db.execute(config_q)
+            auth_config = config_result.scalar_one_or_none()
+
+            if auth_config:
+                # Check method is allowed
+                if "email_password" not in (auth_config.allowed_methods or []):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Email/password login is not enabled for this tenant.",
+                    )
+
+                # Check email domain restriction
+                if auth_config.allowed_domains:
+                    user_domain = str(user.email).split("@")[-1].lower()
+                    allowed = [d.lower() for d in auth_config.allowed_domains]
+                    if user_domain not in allowed:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Email domain '{user_domain}' is not allowed for this tenant.",
+                        )
+
+                # Check MFA enforcement
+                if auth_config.mfa_required and not user.mfa_enabled:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="This organization requires MFA. " "Please enroll at /me/mfa/enroll",
+                    )
+        # ── End tenant gate ──────────────────────────────────────────────
+
         if user.mfa_enabled:
             totp_svc = TOTPService(db, redis_conn)
             mfa_pending_token = await totp_svc.store_mfa_pending(
@@ -126,6 +164,8 @@ async def login(
             user=UserResponse.model_validate(tokens["user"]),
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         background_tasks.add_task(
             audit_service.log,

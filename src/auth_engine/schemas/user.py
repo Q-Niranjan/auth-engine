@@ -91,6 +91,7 @@ class UserResponse(UserBase):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    tenant_id: uuid.UUID | None = None
 
 
 class UserLoginResponse(BaseModel):

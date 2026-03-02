@@ -43,5 +43,8 @@ class TenantORM(Base):
 
     users = relationship("UserRoleORM", back_populates="tenant", cascade="all, delete-orphan")
     email_config = relationship("TenantEmailConfigORM", cascade="all, delete-orphan")
+    sms_config = relationship("TenantSMSConfigORM", cascade="all, delete-orphan")
+    auth_config = relationship("TenantAuthConfigORM", uselist=False, cascade="all, delete-orphan")
+    social_providers = relationship("TenantSocialProviderORM", cascade="all, delete-orphan")
     owner = relationship("UserORM", foreign_keys=[owner_id])
     creator = relationship("UserORM", foreign_keys=[created_by])

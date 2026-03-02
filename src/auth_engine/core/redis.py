@@ -31,7 +31,7 @@ class RedisClient:
 
     async def disconnect(self) -> None:
         if self.client:
-            await self.client.aclose()
+            await self.client.close()
 
 
 redis_client = RedisClient()

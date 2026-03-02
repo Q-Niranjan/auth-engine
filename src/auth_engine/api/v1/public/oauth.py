@@ -60,7 +60,7 @@ async def oauth_login(
         )
 
     try:
-        strategy = get_oauth_strategy(provider)
+        strategy = await get_oauth_strategy(provider, db=db, tenant_id=tenant_id)
         oauth_service = _get_oauth_service(db, redis_conn)
 
         state = await oauth_service.generate_state(tenant_id=tenant_id)
@@ -107,11 +107,13 @@ async def oauth_callback(
         )
 
     try:
-        strategy = get_oauth_strategy(provider)
         oauth_service = _get_oauth_service(db, redis_conn)
 
-        # Validate + consume the state (CSRF protection)
-        await oauth_service.validate_and_consume_state(state)
+        # Validate + consume the state (CSRF protection) — extracts tenant_id
+        callback_tenant_id = await oauth_service.validate_and_consume_state(state)
+
+        # Resolve strategy with tenant credentials (if any)
+        strategy = await get_oauth_strategy(provider, db=db, tenant_id=callback_tenant_id)
 
         # Exchange code → provider tokens → user profile
         oauth_profile = await strategy.authenticate({"code": code})
@@ -173,7 +175,7 @@ async def oauth_link_initiate(
                 detail=f"Your account is already linked to {provider}.",
             )
 
-        strategy = get_oauth_strategy(provider)
+        strategy = await get_oauth_strategy(provider, db=db)
         oauth_service = _get_oauth_service(db, redis_conn)
 
         state = await oauth_service.generate_state()

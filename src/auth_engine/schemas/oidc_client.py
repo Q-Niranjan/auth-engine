@@ -1,15 +1,30 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
+
 
 class ClientRegistrationRequest(BaseModel):
     client_name: str | None = Field(default=None, description="Human-readable name of the client")
     redirect_uris: list[str] = Field(..., description="Array of redirection URIs")
-    response_types: list[str] | None = Field(default=["code"], description="Array of OAuth 2.0 response type strings")
-    grant_types: list[str] | None = Field(default=["authorization_code"], description="Array of OAuth 2.0 grant type strings")
-    token_endpoint_auth_method: str | None = Field(default="client_secret_basic", description="Requested Client Authentication method")
+    response_types: list[str] | None = Field(
+        default=["code"], description="Array of OAuth 2.0 response type strings"
+    )
+    grant_types: list[str] | None = Field(
+        default=["authorization_code"], description="Array of OAuth 2.0 grant type strings"
+    )
+    token_endpoint_auth_method: str | None = Field(
+        default="client_secret_basic", description="Requested Client Authentication method"
+    )
     jwks_uri: str | None = Field(default=None, description="URL for the Client's JSON Web Key Set")
-    subject_type: str | None = Field(default="public", description="Subject type requested for responses")
-    sector_identifier_uri: str | None = Field(default=None, description="URL using the https scheme to be used in calculating Pseudonymous Identifiers by the OP")
+    subject_type: str | None = Field(
+        default="public", description="Subject type requested for responses"
+    )
+    sector_identifier_uri: str | None = Field(
+        default=None,
+        description=(
+            "URL using the https scheme to be used in calculating "
+            "Pseudonymous Identifiers by the OP"
+        ),
+    )
+
 
 class ClientRegistrationResponse(BaseModel):
     client_id: str

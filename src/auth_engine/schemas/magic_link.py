@@ -3,6 +3,8 @@
 Pydantic schemas for the Magic Link authentication endpoints.
 """
 
+import uuid
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -10,6 +12,7 @@ class MagicLinkRequest(BaseModel):
     """
     Body for POST /auth/magic-link/request
     The only input required from the user is their email address.
+    Optionally includes tenant_id for tenant-scoped auth gating.
     """
 
     email: EmailStr = Field(
@@ -17,11 +20,18 @@ class MagicLinkRequest(BaseModel):
         description="Email address to send the magic sign-in link to",
         examples=["user@example.com"],
     )
+    tenant_id: uuid.UUID | None = Field(
+        None,
+        description=(
+            "Optional tenant context — gates on tenant's " "allowed_methods and allowed_domains"
+        ),
+    )
 
     class Config:
         json_schema_extra = {
             "example": {
                 "email": "user@example.com",
+                "tenant_id": None,
             }
         }
 
