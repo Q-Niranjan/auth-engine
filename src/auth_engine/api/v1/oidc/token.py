@@ -43,18 +43,21 @@ router = APIRouter()
 
 # ── PKCE helpers ─────────────────────────────────────────────────────────────
 
+
 def _verify_pkce(code_verifier: str, code_challenge: str) -> bool:
     """
     Verify PKCE S256 code challenge.
     code_challenge == BASE64URL(SHA256(code_verifier))
     """
     import base64
+
     digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
     computed = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
     return secrets.compare_digest(computed, code_challenge)
 
 
 # ── ID Token builder ──────────────────────────────────────────────────────────
+
 
 def _build_id_token(
     user_id: str,
@@ -84,7 +87,6 @@ def _build_id_token(
         "exp": int((now + timedelta(minutes=10)).timestamp()),
         "iat": int(now.timestamp()),
         "auth_time": int(now.timestamp()),
-
         # ── Profile claims ────────────────────────────────────────────────
         "email": email,
         "email_verified": email_verified,
@@ -101,6 +103,7 @@ def _build_id_token(
 
     try:
         from auth_engine.core.oidc_crypto import OIDC_RSA_PRIVATE_KEY
+
         if OIDC_RSA_PRIVATE_KEY:
             # Use RS256 if RSA keys are configured
             headers = {"kid": "rsa1"}
@@ -111,10 +114,13 @@ def _build_id_token(
     # Fallback to HS256
     kid = hashlib.sha256(settings.JWT_SECRET_KEY[:8].encode()).hexdigest()[:16]
     headers = {"kid": kid}
-    return jwt.encode(claims, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM, headers=headers)
+    return jwt.encode(
+        claims, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM, headers=headers
+    )
 
 
 # ── Token endpoint ────────────────────────────────────────────────────────────
+
 
 @router.post(
     "/token",
@@ -141,8 +147,10 @@ async def token_exchange(
     redis_conn: aioredis.Redis = Depends(get_redis),
 ) -> JSONResponse:
     from sqlalchemy import select
-    from auth_engine.models.oidc_client import OIDCClientORM
+
     from auth_engine.core.oidc_crypto import get_pairwise_sub
+    from auth_engine.models.oidc_client import OIDCClientORM
+
     """
     OIDC Token endpoint — authorization_code and refresh_token grant types.
 
@@ -168,24 +176,44 @@ async def token_exchange(
     if client_id:
         result = await db.execute(select(OIDCClientORM).filter_by(client_id=client_id))
         client = result.scalar_one_or_none()
-        
+
         if client:
             auth_method = client.token_endpoint_auth_method
-            
+
             if auth_method == "client_secret_post" or auth_method == "client_secret_basic":
                 if client_secret != client.client_secret:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail={"error": "invalid_client", "error_description": "Invalid client secret"}
+                        detail={
+                            "error": "invalid_client",
+                            "error_description": "Invalid client secret",
+                        },
                     )
             elif auth_method == "private_key_jwt":
-                if client_assertion_type != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" or not client_assertion:
+                if (
+                    client_assertion_type
+                    != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+                    or not client_assertion
+                ):
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail={"error": "invalid_client", "error_description": "client_assertion required for private_key_jwt"}
+                        detail={
+                            "error": "invalid_client",
+                            "error_description": "client_assertion required for private_key_jwt",
+                        },
                     )
                 import urllib.request
+
                 from jose import jwt as jose_jwt
+
+                if not client.jwks_uri:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "error": "invalid_client",
+                            "error_description": "jwks_uri is missing",
+                        },
+                    )
                 try:
                     # In production this would cache the JWKS or hit the URL
                     # For demo purposes we just attempt to decode and let it verify via JWKS.
@@ -193,17 +221,20 @@ async def token_exchange(
                     jwks_resp = urllib.request.urlopen(client.jwks_uri)
                     jwks = __import__("json").loads(jwks_resp.read())
                     jose_jwt.decode(
-                        client_assertion, 
-                        jwks, 
-                        algorithms=["RS256"], 
+                        client_assertion,
+                        jwks,
+                        algorithms=["RS256"],
                         audience="http://localhost:8000/api/v1/oidc/token",
-                        issuer=client_id
+                        issuer=client_id,
                     )
                 except Exception as e:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail={"error": "invalid_client", "error_description": f"JWT signature failed: {str(e)}"}
-                    )
+                        detail={
+                            "error": "invalid_client",
+                            "error_description": f"JWT signature failed: {str(e)}",
+                        },
+                    ) from e
 
     # ── authorization_code grant ──────────────────────────────────────────
     if grant_type == "authorization_code":
@@ -227,11 +258,11 @@ async def token_exchange(
 
         try:
             code_data: dict = __import__("json").loads(raw)
-        except Exception:
+        except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"error": "invalid_grant", "error_description": "Malformed code payload"},
-            )
+            ) from e
 
         # Validate redirect_uri matches what was used at /authorize
         if redirect_uri and code_data.get("redirect_uri") != redirect_uri:
@@ -253,23 +284,29 @@ async def token_exchange(
             if not code_verifier:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "invalid_request", "error_description": "code_verifier required"},
+                    detail={
+                        "error": "invalid_request",
+                        "error_description": "code_verifier required",
+                    },
                 )
             if not _verify_pkce(code_verifier, stored_challenge):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "invalid_grant", "error_description": "PKCE verification failed"},
+                    detail={
+                        "error": "invalid_grant",
+                        "error_description": "PKCE verification failed",
+                    },
                 )
 
         # Load user
         user_repo = UserRepository(db)
         try:
             user_uuid = uuid.UUID(code_data["user_id"])
-        except (KeyError, ValueError):
+        except (KeyError, ValueError) as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"error": "invalid_grant", "error_description": "Invalid user in code"},
-            )
+            ) from err
 
         user = await user_repo.get(user_uuid)
         if not user:
@@ -280,6 +317,7 @@ async def token_exchange(
 
         # Issue tokens and record session in Redis
         from auth_engine.services.session_service import SessionService
+
         session_service = SessionService(redis_conn)
         session_id = await session_service.create_session(
             user_id=user.id,
@@ -288,13 +326,17 @@ async def token_exchange(
         # Calculate sub to return
         returned_sub = str(user.id)
         if client and client.subject_type == "pairwise":
-            sector_id = client.sector_identifier_uri or code_data.get("redirect_uri", "") or "default_sector"
+            sector_id = (
+                client.sector_identifier_uri
+                or code_data.get("redirect_uri", "")
+                or "default_sector"
+            )
             returned_sub = get_pairwise_sub(sector_id, returned_sub)
 
         tokens = token_manager.create_access_token(
             data={
                 "sub": str(user.id),
-                "oidc_sub": returned_sub, # Passing the pairwise or public OIDC sub for userinfo
+                "oidc_sub": returned_sub,  # Passing the pairwise or public OIDC sub for userinfo
                 "client_id": client.client_id if client else (client_id or ""),
                 "email": str(user.email),
                 "sid": session_id,
@@ -304,7 +346,7 @@ async def token_exchange(
         refresh = token_manager.create_refresh_token(
             data={"sub": str(user.id), "sid": session_id, "type": "refresh"}
         )
-        
+
         id_token = _build_id_token(
             user_id=returned_sub,
             email=str(user.email),
@@ -336,16 +378,22 @@ async def token_exchange(
         if not refresh_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"error": "invalid_request", "error_description": "refresh_token is required"},
+                detail={
+                    "error": "invalid_request",
+                    "error_description": "refresh_token is required",
+                },
             )
 
         try:
             payload = token_manager.verify_refresh_token(refresh_token)
-        except ValueError:
+        except ValueError as err:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"error": "invalid_grant", "error_description": "Invalid or expired refresh token"},
-            )
+                detail={
+                    "error": "invalid_grant",
+                    "error_description": "Invalid or expired refresh token",
+                },
+            ) from err
 
         user_id_str = payload.get("sub")
 
@@ -358,12 +406,15 @@ async def token_exchange(
             )
 
         from auth_engine.services.session_service import SessionService
+
         session_service = SessionService(redis_conn)
-        session_id = payload.get("sid")
+        session_id_val = str(payload.get("sid")) if payload.get("sid") else None
 
         # If old session is gone or wasn't provided, create a new valid one
-        if not session_id or not await session_service.is_session_active(user.id, session_id):
-            session_id = await session_service.create_session(
+        if not session_id_val or not await session_service.is_session_active(
+            user.id, session_id_val
+        ):
+            session_id_val = await session_service.create_session(
                 user_id=user.id,
                 expires_in_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
             )
@@ -376,12 +427,12 @@ async def token_exchange(
 
         new_access = token_manager.create_access_token(
             data={
-                "sub": str(user.id), 
-                "oidc_sub": returned_sub, 
+                "sub": str(user.id),
+                "oidc_sub": returned_sub,
                 "client_id": client.client_id if client else (client_id or ""),
-                "email": str(user.email), 
-                "sid": session_id, 
-                "type": "access"
+                "email": str(user.email),
+                "sid": session_id_val,
+                "type": "access",
             }
         )
 

@@ -51,15 +51,15 @@ async def seed_super_admin(db: AsyncSession) -> None:
         .where(RoleORM.name == "SUPER_ADMIN")
         .limit(1)
     )
-    row = results.first()
+    missing_row = results.first()
 
-    if not row or not row.RoleORM:
+    if not missing_row or not missing_row.RoleORM:
         logger.warning("SUPER_ADMIN role not found — ensure seed_roles ran first")
         return
 
-    super_admin_role: RoleORM = row.RoleORM
-    user: UserORM | None = row.UserORM
-    platform: TenantORM | None = row.TenantORM
+    super_admin_role: RoleORM = missing_row.RoleORM
+    user: UserORM | None = missing_row.UserORM
+    platform: TenantORM | None = missing_row.TenantORM
 
     # ── Create user if missing ───────────────────────────────────────────────
     if not user:

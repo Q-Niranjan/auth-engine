@@ -48,10 +48,7 @@ class SMSServiceResolver:
                     api_key=api_key,
                     from_number=tenant_config_orm.from_number,
                     is_active=tenant_config_orm.is_active,
-                    # For Twilio, we'd need account_sid too.
-                    # We might need to store this in a separate column or in credentials JSON.
-                    # For now, using default account_sid if not in credentials.
-                    account_sid=settings.SMS_PROVIDER_ACCOUNT_SID,
+                    account_sid=tenant_config_orm.account_sid or settings.SMS_PROVIDER_ACCOUNT_SID,
                 )
                 return SMSServiceFactory.create(config)
             except Exception as e:

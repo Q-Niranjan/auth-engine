@@ -24,4 +24,5 @@ class TenantSMSConfigORM(Base):
     provider: Mapped[SMSProviderType] = mapped_column(SQLEnum(SMSProviderType), nullable=False)
     encrypted_credentials: Mapped[str] = mapped_column(String, nullable=False)
     from_number: Mapped[str] = mapped_column(String, nullable=False)
+    account_sid: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

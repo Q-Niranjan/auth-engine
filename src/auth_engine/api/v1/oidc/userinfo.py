@@ -14,8 +14,8 @@ import logging
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-
 from fastapi.security import HTTPAuthorizationCredentials
+
 from auth_engine.api.dependencies.auth_deps import get_current_active_user, security
 from auth_engine.core.security import token_manager
 from auth_engine.models.user import UserORM
@@ -37,7 +37,7 @@ router = APIRouter()
 @router.post("/userinfo", include_in_schema=False)  # POST is also valid per OIDC spec
 async def userinfo(
     current_user: UserORM = Depends(get_current_active_user),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> JSONResponse:
     """
     UserInfo endpoint — returns OIDC standard claims.
@@ -69,18 +69,15 @@ async def userinfo(
     claims = {
         # ── Required OIDC claims ──────────────────────────────────────────
         "sub": returned_sub,
-
         # ── Profile scope claims ──────────────────────────────────────────
         "name": name,
         "given_name": given_name or None,
         "family_name": family_name or None,
         "picture": current_user.avatar_url,
         "updated_at": int(current_user.updated_at.timestamp()) if current_user.updated_at else None,
-
         # ── Email scope claims ────────────────────────────────────────────
         "email": str(current_user.email),
         "email_verified": current_user.is_email_verified,
-
         # ── AuthEngine-specific extensions (non-standard, prefixed) ───────
         "authengine:username": current_user.username,
         "authengine:phone_verified": current_user.is_phone_verified,

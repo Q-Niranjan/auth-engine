@@ -91,6 +91,12 @@ class TokenManager:
         else:
             expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
+        # Default scope / tenant_id claims (callers override for tenant-scoped tokens)
+        if "scope" not in to_encode:
+            to_encode["scope"] = "platform"
+        if "tenant_id" not in to_encode:
+            to_encode["tenant_id"] = None
+
         to_encode.update(
             {
                 "exp": expire,

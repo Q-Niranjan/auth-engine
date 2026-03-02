@@ -6,9 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.deps import get_audit_service, get_db
 from auth_engine.api.dependencies.rbac import check_platform_permission
-from auth_engine.models import TenantORM, UserORM
+from auth_engine.models import TenantAuthConfigORM, TenantORM, UserORM
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.tenant import TenantCreate, TenantResponse, TenantUpdate
+from auth_engine.schemas.tenant_auth_config import DEFAULT_ALLOWED_METHODS, DEFAULT_PASSWORD_POLICY
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.tenant_service import TenantService
 
@@ -38,6 +39,19 @@ async def create_tenant(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
+
+    # Auto-seed TenantAuthConfig with defaults
+    auth_config = TenantAuthConfigORM(
+        tenant_id=tenant.id,
+        allowed_methods=DEFAULT_ALLOWED_METHODS,
+        mfa_required=False,
+        password_policy=DEFAULT_PASSWORD_POLICY,
+        session_ttl_seconds=3600,
+        allowed_domains=[],
+    )
+    db.add(auth_config)
+    await db.commit()
+
     return TenantResponse.model_validate(tenant)
 
 

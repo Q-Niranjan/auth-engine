@@ -13,6 +13,7 @@ api_router.include_router(public.auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(public.magic_link.router, prefix="/auth/magic-link", tags=["auth"])
 api_router.include_router(public.mfa.router, prefix="/auth/mfa", tags=["mfa"])
 api_router.include_router(public.oauth.router, prefix="/auth/oauth", tags=["oauth"])
+api_router.include_router(public.select_tenant.router, prefix="/auth", tags=["auth-tenant"])
 
 
 api_router.include_router(platform.service_api_key.router, prefix="/auth", tags=["auth-introspect"])
@@ -39,6 +40,20 @@ api_router.include_router(
 api_router.include_router(tenants.users.router, prefix="/tenants/users", tags=["tenant-users"])
 api_router.include_router(tenants.roles.router, prefix="/tenants/roles", tags=["tenant-roles"])
 api_router.include_router(tenants.audit.router, prefix="/tenants/audit", tags=["tenant-audit"])
+
+# Tenant Auth Configuration
+api_router.include_router(
+    tenants.auth_config.router, prefix="/tenants", tags=["tenant-auth-config"]
+)
+api_router.include_router(
+    tenants.social_providers.router, prefix="/tenants", tags=["tenant-social-providers"]
+)
+
+# Tenant Email & SMS Configuration
+api_router.include_router(
+    tenants.email_config.router, prefix="/tenants", tags=["tenant-email-config"]
+)
+api_router.include_router(tenants.sms_config.router, prefix="/tenants", tags=["tenant-sms-config"])
 
 
 api_router.include_router(oidc.authorize.router, prefix="/oidc", tags=["oidc"])
