@@ -11,6 +11,9 @@ __pycache__/
 .env.local
 .env.*.local
 
+# Private keys
+*.pem
+
 # Virtual environments
 .venv
 venv/

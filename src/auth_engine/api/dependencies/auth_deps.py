@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -8,8 +10,10 @@ from auth_engine.api.dependencies.deps import get_db
 from auth_engine.core.redis import get_redis
 from auth_engine.core.security import token_manager
 from auth_engine.models import RoleORM, RolePermissionORM, UserORM, UserRoleORM
+from auth_engine.repositories.user_repo import UserRepository
 
 security = HTTPBearer()
+bearer_optional = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -106,3 +110,28 @@ async def get_current_active_superadmin(
             status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
         )
     return current_user
+
+
+async def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_optional),
+    db: AsyncSession = Depends(get_db),
+) -> UserORM | None:
+    """
+    Like get_current_user but returns None instead of 401.
+    Used by OIDC /authorize to check for an existing authenticated session.
+    If a valid token is present, returns the user — otherwise returns None
+    and the authorize endpoint shows the login page.
+    """
+    if not credentials:
+        return None
+
+    try:
+        payload = token_manager.verify_access_token(credentials.credentials)
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            return None
+
+        user_repo = UserRepository(db)
+        return await user_repo.get(uuid.UUID(user_id_str))
+    except Exception:
+        return None

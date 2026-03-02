@@ -1,7 +1,6 @@
 import logging
-import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -119,17 +118,16 @@ async def seed_roles(db: AsyncSession) -> None:
         .values(role_rows)
         .on_conflict_do_update(
             index_elements=["name"],
-            set_={"description": insert(RoleORM).excluded.description,
-                  "scope": insert(RoleORM).excluded.scope,
-                  "level": insert(RoleORM).excluded.level},
+            set_={
+                "description": insert(RoleORM).excluded.description,
+                "scope": insert(RoleORM).excluded.scope,
+                "level": insert(RoleORM).excluded.level,
+            },
         )
     )
 
     # ── 2. Bulk upsert permissions (1 query) ────────────────────────────────
-    perm_rows = [
-        {"name": name, "description": desc}
-        for name, desc in DEFAULT_PERMISSIONS
-    ]
+    perm_rows = [{"name": name, "description": desc} for name, desc in DEFAULT_PERMISSIONS]
     await db.execute(
         insert(PermissionORM)
         .values(perm_rows)
@@ -154,11 +152,7 @@ async def seed_roles(db: AsyncSession) -> None:
     ]
 
     if assoc_rows:
-        await db.execute(
-            insert(RolePermissionORM)
-            .values(assoc_rows)
-            .on_conflict_do_nothing()
-        )
+        await db.execute(insert(RolePermissionORM).values(assoc_rows).on_conflict_do_nothing())
 
     await db.commit()
     logger.info("Roles and permissions seeded successfully")

@@ -1,5 +1,6 @@
 from .email_config import TenantEmailConfigORM
 from .oauth_account import OAuthAccountORM
+from .oidc_client import OIDCClientORM
 from .permission import PermissionORM
 from .role import RoleORM
 from .role_permission import RolePermissionORM
@@ -20,4 +21,5 @@ __all__ = [
     "TenantSMSConfigORM",
     "OAuthAccountORM",
     "ServiceApiKeyORM",
+    "OIDCClientORM",
 ]

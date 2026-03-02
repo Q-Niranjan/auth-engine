@@ -1,7 +1,7 @@
 import logging
 
-import redis.asyncio as aioredis
 import redis
+import redis.asyncio as aioredis
 
 from auth_engine.core.config import settings
 
