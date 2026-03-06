@@ -66,6 +66,6 @@ async def delete_credential(
     try:
         await service.delete_credential(current_user, credential_id)
     except NotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     logger.info(f"[webauthn] credential deleted user={current_user.id} cred={credential_id}")

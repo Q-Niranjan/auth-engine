@@ -3,18 +3,18 @@
 GOOGLE = "google"
 GITHUB = "github"
 MICROSOFT = "microsoft"
+AUTHENGINE_OIDC = "authengine"  # Another AuthEngine instance as OAuth provider
 
-SUPPORTED_PROVIDERS = {GOOGLE, GITHUB, MICROSOFT}
+SUPPORTED_PROVIDERS = {GOOGLE, GITHUB, MICROSOFT, AUTHENGINE_OIDC}
 
 # Redis key prefix for OAuth state tokens
 OAUTH_STATE_PREFIX = "oauth:state:"
-OAUTH_STATE_TTL_SECONDS = 600  # 10 minutes — more than enough for a login flow
+OAUTH_STATE_TTL_SECONDS = 600  # 10 minutes
 
 # Google OAuth URLs
 GOOGLE_AUTHORIZATION_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
-
 
 # GitHub OAuth URLs
 GITHUB_AUTHORIZATION_URL = "https://github.com/login/oauth/authorize"
@@ -27,7 +27,12 @@ MICROSOFT_AUTHORIZATION_URL = "https://login.microsoftonline.com/common/oauth2/v
 MICROSOFT_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 MICROSOFT_USERINFO_URL = "https://graph.microsoft.com/v1.0/me"
 
-# Standard claim keys
+# AuthEngine OIDC URLs are derived at runtime from AUTHENGINE_BASE_URL:
+#   AUTHORIZATION_URL = {base}/api/v1/oidc/authorize
+#   TOKEN_URL         = {base}/api/v1/oidc/token
+#   USERINFO_URL      = {base}/api/v1/oidc/userinfo
+
+# Standard OIDC claim keys
 CLAIM_SUB = "sub"
 CLAIM_EMAIL = "email"
 CLAIM_EMAIL_VERIFIED = "email_verified"
@@ -36,23 +41,16 @@ CLAIM_FAMILY_NAME = "family_name"
 CLAIM_NAME = "name"
 CLAIM_PICTURE = "picture"
 
-
 # Redis key pattern for one-time-use flags
 MAGIC_LINK_PREFIX = "magic:jti:"
-
-# TTL for the magic link JWT
 MAGIC_LINK_TTL_SECONDS = 15 * 60  # 15 minutes
 
 # MFA / TOTP
 MFA_PENDING_PREFIX = "mfa:pending:"
-MFA_PENDING_TTL_SECONDS = 300  # 5 minutes to complete MFA after primary auth
+MFA_PENDING_TTL_SECONDS = 300  # 5 minutes
 
-
+# WebAuthn
 WEBAUTHN = "webauthn"
-
-# Redis key prefixes
-WEBAUTHN_REG_PREFIX = "webauthn:reg:"  # registration challenge  (keyed by user_id)
-WEBAUTHN_AUTH_PREFIX = "webauthn:auth:"  # authentication challenge (keyed by challenge bytes hex)
-
-# TTL for both challenges — 5 minutes is the W3C recommended window
+WEBAUTHN_REG_PREFIX = "webauthn:reg:"
+WEBAUTHN_AUTH_PREFIX = "webauthn:auth:"
 WEBAUTHN_CHALLENGE_TTL = 300

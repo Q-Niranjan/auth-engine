@@ -16,19 +16,18 @@ Depends on:
 import base64
 import json
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 import redis.asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_engine.auth_strategies.webauthn import WebAuthnStrategy
 from auth_engine.auth_strategies.constants import (
     WEBAUTHN,
     WEBAUTHN_AUTH_PREFIX,
     WEBAUTHN_CHALLENGE_TTL,
     WEBAUTHN_REG_PREFIX,
 )
+from auth_engine.auth_strategies.webauthn import WebAuthnStrategy
 from auth_engine.core.config import settings
 from auth_engine.core.exceptions import AuthenticationError, NotFoundError
 from auth_engine.models import UserORM
@@ -69,9 +68,7 @@ class WebAuthnService:
         """
         existing_ids = await self.webauthn_repo.get_credential_ids_for_user(user.id)
 
-        display_name = " ".join(
-            filter(None, [user.first_name, user.last_name])
-        ) or str(user.email)
+        display_name = " ".join(filter(None, [user.first_name, user.last_name])) or str(user.email)
 
         options, challenge = WebAuthnStrategy.generate_registration_options(
             user_id=str(user.id),
@@ -192,9 +189,7 @@ class WebAuthnService:
 
         # clientDataJSON is base64url-encoded JSON
         padding = 4 - len(client_data_b64) % 4
-        client_data = json.loads(
-            _b64.urlsafe_b64decode(client_data_b64 + ("=" * (padding % 4)))
-        )
+        client_data = json.loads(_b64.urlsafe_b64decode(client_data_b64 + ("=" * (padding % 4))))
         # challenge in clientDataJSON is base64url-encoded
         challenge_b64 = client_data.get("challenge", "")
         padding2 = 4 - len(challenge_b64) % 4

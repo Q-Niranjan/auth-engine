@@ -13,6 +13,7 @@ from auth_engine.core.mongodb import close_mongo, init_mongo, mongo_db
 from auth_engine.core.postgres import AsyncSessionLocal, init_db
 from auth_engine.core.rbac_seed import seed_roles
 from auth_engine.core.redis import redis_client
+from fastapi.middleware.cors import CORSMiddleware
 
 logging.basicConfig(
     level=logging.DEBUG if settings.DEBUG else logging.INFO,
@@ -63,6 +64,14 @@ app = FastAPI(
     description=settings.APP_DESCRIPTION,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

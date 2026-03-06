@@ -12,6 +12,7 @@ from auth_engine.schemas.tenant import TenantCreate, TenantResponse, TenantUpdat
 from auth_engine.schemas.tenant_auth_config import DEFAULT_ALLOWED_METHODS, DEFAULT_PASSWORD_POLICY
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.tenant_service import TenantService
+from sqlalchemy.orm import joinedload
 
 router = APIRouter()
 
@@ -55,6 +56,8 @@ async def create_tenant(
     return TenantResponse.model_validate(tenant)
 
 
+
+
 @router.get("/tenants", response_model=list[TenantResponse])
 async def list_all_tenants(
     db: AsyncSession = Depends(get_db),
@@ -63,7 +66,7 @@ async def list_all_tenants(
     """
     List all tenants globally.
     """
-    query = select(TenantORM)
+    query = select(TenantORM).options(joinedload(TenantORM.owner), joinedload(TenantORM.creator))
     result = await db.execute(query)
     tenants = list(result.scalars().all())
     return [TenantResponse.model_validate(t) for t in tenants]
@@ -78,7 +81,11 @@ async def get_tenant(
     """
     View tenant details.
     """
-    query = select(TenantORM).where(TenantORM.id == tenant_id)
+    query = (
+        select(TenantORM)
+        .where(TenantORM.id == tenant_id)
+        .options(joinedload(TenantORM.owner), joinedload(TenantORM.creator))
+    )
     result = await db.execute(query)
     tenant = result.scalar_one_or_none()
     if not tenant:

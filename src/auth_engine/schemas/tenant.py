@@ -3,6 +3,8 @@ from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, EmailStr
+from auth_engine.schemas.user import UserResponse
+
 
 
 class TenantType(str, Enum):
@@ -26,11 +28,15 @@ class TenantUpdate(TenantBase):
     pass
 
 
+
+
 class TenantResponse(TenantBase):
     id: uuid.UUID
     created_by: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    owner: UserResponse | None = None
+    creator: UserResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

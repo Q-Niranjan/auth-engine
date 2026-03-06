@@ -94,5 +94,14 @@ class Settings(BaseSettings):
     MICROSOFT_CLIENT_SECRET: str = Field(default="", description="Microsoft OAuth Client Secret")
     MICROSOFT_REDIRECT_URI: str = Field(default="", description="Microsoft OAuth Redirect URI")
 
+    # AuthEngine self-hosted OAuth Settings
+    AUTHENGINE_BASE_URL: str = Field(default="", description="AuthEngine Base URL")
+    AUTHENGINE_CLIENT_ID: str = Field(default="", description="AuthEngine Client ID")
+    AUTHENGINE_CLIENT_SECRET: str = Field(default="", description="AuthEngine Client Secret")
+    AUTHENGINE_REDIRECT_URI: str = Field(default="", description="AuthEngine Redirect URI")
+
+    # CORS Settings
+    CORS_ORIGINS: list[str] = Field(default=[], description="List of allowed origins for CORS")
+
 
 settings = Settings()

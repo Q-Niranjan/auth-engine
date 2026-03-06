@@ -79,9 +79,7 @@ class WebAuthnRepository:
         await self.session.refresh(cred)
         return cred
 
-    async def update_sign_count(
-        self, credential: WebAuthnCredentialORM, new_count: int
-    ) -> None:
+    async def update_sign_count(self, credential: WebAuthnCredentialORM, new_count: int) -> None:
         credential.sign_count = new_count
         credential.last_used_at = datetime.now(UTC)
         await self.session.flush()

@@ -35,21 +35,21 @@ api_router.include_router(me.mfa.router, prefix="/me/mfa", tags=["mfa"])
 
 
 # Platform Management (Super Admin Scope)
-api_router.include_router(platform.user.router, prefix="/platform/users", tags=["platform-users"])
+api_router.include_router(platform.user.router, prefix="/platform", tags=["platform-users"])
 api_router.include_router(
-    platform.tenant.router, prefix="/platform/tenants", tags=["platform-tenants"]
+    platform.tenant.router, prefix="/platform", tags=["platform-tenants"]
 )
-api_router.include_router(platform.roles.router, prefix="/platform/roles", tags=["platform-roles"])
-api_router.include_router(platform.audit.router, prefix="/platform/audit", tags=["platform-audit"])
+api_router.include_router(platform.roles.router, prefix="/platform", tags=["platform-roles"])
+api_router.include_router(platform.audit.router, prefix="/platform", tags=["platform-audit"])
 api_router.include_router(
     public.introspect.router, prefix="/platform/service-keys", tags=["platform-service-keys"]
 )
 
 
 # Tenant Management
-api_router.include_router(tenants.users.router, prefix="/tenants/users", tags=["tenant-users"])
-api_router.include_router(tenants.roles.router, prefix="/tenants/roles", tags=["tenant-roles"])
-api_router.include_router(tenants.audit.router, prefix="/tenants/audit", tags=["tenant-audit"])
+api_router.include_router(tenants.users.router, prefix="/tenants", tags=["tenant-users"])
+api_router.include_router(tenants.roles.router, prefix="/tenants", tags=["tenant-roles"])
+api_router.include_router(tenants.audit.router, prefix="/tenants", tags=["tenant-audit"])
 
 # Tenant Auth Configuration
 api_router.include_router(

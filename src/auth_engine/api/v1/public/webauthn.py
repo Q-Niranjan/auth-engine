@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.auth_deps import get_current_active_user
 from auth_engine.api.dependencies.deps import get_db
-from auth_engine.core.exceptions import AuthenticationError, NotFoundError
+from auth_engine.core.exceptions import AuthenticationError
 from auth_engine.core.redis import get_redis
 from auth_engine.models import UserORM
 from auth_engine.schemas.user import UserLoginResponse
@@ -60,7 +60,7 @@ async def register_begin(
     try:
         options = await service.begin_registration(current_user)
     except AuthenticationError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     logger.info(f"[webauthn] register/begin user={current_user.id}")
     return WebAuthnRegisterBeginResponse(options=options)
@@ -91,7 +91,7 @@ async def register_complete(
             device_name=body.device_name,
         )
     except AuthenticationError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     logger.info(f"[webauthn] register/complete user={current_user.id} device='{body.device_name}'")
     return WebAuthnRegisterCompleteResponse(
@@ -125,7 +125,7 @@ async def authenticate_begin(
         options = await service.begin_authentication(email=body.email)
     except Exception as exc:
         logger.error(f"[webauthn] authenticate/begin error: {exc}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return WebAuthnAuthBeginResponse(options=options)
 
@@ -158,13 +158,13 @@ async def authenticate_complete(
             user_agent=ua,
         )
     except AuthenticationError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
     except Exception as exc:
         logger.error(f"[webauthn] authenticate/complete unexpected error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication failed",
-        )
+        ) from exc
 
     logger.info("[webauthn] authenticate/complete — session issued")
     return UserLoginResponse(**tokens)

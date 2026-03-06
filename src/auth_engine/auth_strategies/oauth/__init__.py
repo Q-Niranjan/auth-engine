@@ -1,3 +1,4 @@
+from auth_engine.auth_strategies.oauth.authengine import AuthEngineOAuthStrategy
 from auth_engine.auth_strategies.oauth.base_oauth import BaseOAuthStrategy
 from auth_engine.auth_strategies.oauth.github import GitHubOAuthStrategy
 from auth_engine.auth_strategies.oauth.google import GoogleOAuthStrategy
@@ -8,4 +9,5 @@ __all__ = [
     "GoogleOAuthStrategy",
     "GitHubOAuthStrategy",
     "MicrosoftOAuthStrategy",
+    "AuthEngineOAuthStrategy",
 ]

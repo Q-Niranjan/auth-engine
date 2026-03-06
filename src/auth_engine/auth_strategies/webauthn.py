@@ -88,8 +88,7 @@ class WebAuthnStrategy:
         challenge = os.urandom(32)
 
         exclude_credentials = [
-            PublicKeyCredentialDescriptor(id=cred_id)
-            for cred_id in (existing_credential_ids or [])
+            PublicKeyCredentialDescriptor(id=cred_id) for cred_id in (existing_credential_ids or [])
         ]
 
         options = webauthn.generate_registration_options(
@@ -111,6 +110,7 @@ class WebAuthnStrategy:
         # py_webauthn returns a dataclass — convert to dict for JSON transport
         options_dict = webauthn.options_to_json(options)
         import json
+
         return json.loads(options_dict), challenge
 
     @staticmethod
@@ -165,8 +165,7 @@ class WebAuthnStrategy:
         challenge = os.urandom(32)
 
         allow_credentials = [
-            PublicKeyCredentialDescriptor(id=cred_id)
-            for cred_id in (allowed_credential_ids or [])
+            PublicKeyCredentialDescriptor(id=cred_id) for cred_id in (allowed_credential_ids or [])
         ]
 
         options = webauthn.generate_authentication_options(
@@ -178,6 +177,7 @@ class WebAuthnStrategy:
         )
 
         import json
+
         options_dict = webauthn.options_to_json(options)
         return json.loads(options_dict), challenge
 
@@ -218,6 +218,7 @@ def _get_expected_origin() -> str:
     """Return the expected RP origin (scheme + host, no trailing slash)."""
     url = getattr(settings, "APP_URL", "http://localhost:8000")
     from urllib.parse import urlparse
+
     p = urlparse(url)
     origin = f"{p.scheme}://{p.hostname}"
     if p.port and p.port not in (80, 443):

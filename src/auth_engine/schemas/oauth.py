@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-OAuthProvider = Literal["google", "github", "microsoft"]
+OAuthProvider = Literal["google", "github", "microsoft", "authengine"]
 
 
 class OAuthCallbackRequest(BaseModel):
