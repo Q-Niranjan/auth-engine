@@ -3,12 +3,13 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
+from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM, RolePermissionORM, PermissionORM
 from auth_engine.models.role import RoleScope
 from auth_engine.models.tenant import TenantType
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.permission_service import PermissionService
+from auth_engine.schemas.rbac import RoleCreateRequest, RoleUpdateRequest
 
 
 class RoleService:
@@ -194,3 +195,103 @@ class RoleService:
         query = select(RoleORM).where(RoleORM.scope != RoleScope.PLATFORM)
         result = await self.user_repo.session.execute(query)
         return list(result.scalars().all())
+
+    async def create_role(self, data: RoleCreateRequest) -> RoleORM:
+        # Check uniqueness
+        result = await self.user_repo.session.execute(select(RoleORM).where(RoleORM.name == data.name))
+        if result.scalar_one_or_none():
+            raise ValueError(f"Role '{data.name}' already exists")
+
+        new_role = RoleORM(
+            name=data.name,
+            description=data.description,
+            scope=data.scope,
+            level=data.level,
+        )
+        self.user_repo.session.add(new_role)
+        await self.user_repo.session.flush()
+
+        for perm_id in data.permissions:
+            res = await self.user_repo.session.execute(select(PermissionORM).where(PermissionORM.id == perm_id))
+            perm = res.scalar_one_or_none()
+            if not perm:
+                raise ValueError(f"Permission '{perm_id}' not found")
+                
+            # Scope enforcement
+            if data.scope == RoleScope.PLATFORM:
+                if not (perm.name.startswith("platform.") or perm.name.startswith("auth.")):
+                    raise ValueError(f"Platform roles cannot contain permission '{perm.name}'")
+            elif data.scope == RoleScope.TENANT:
+                if not (perm.name.startswith("tenant.") or perm.name.startswith("auth.")):
+                    raise ValueError(f"Tenant roles cannot contain permission '{perm.name}'")
+
+            rp = RolePermissionORM(role_id=new_role.id, permission_id=perm_id)
+            self.user_repo.session.add(rp)
+        await self.user_repo.session.commit()
+        return new_role
+
+    async def update_role(self, role_id: uuid.UUID, data: RoleUpdateRequest) -> RoleORM:
+        result = await self.user_repo.session.execute(select(RoleORM).where(RoleORM.id == role_id))
+        role = result.scalar_one_or_none()
+        if not role:
+            raise ValueError("Role not found")
+            
+        if role.name in ("SUPER_ADMIN", "TENANT_OWNER"):
+            raise ValueError("Cannot modify system roles")
+
+        if data.name is not None and data.name != role.name:
+            # check uniqueness
+            check = await self.user_repo.session.execute(select(RoleORM).where(RoleORM.name == data.name))
+            if check.scalar_one_or_none():
+                raise ValueError(f"Role '{data.name}' already exists")
+            role.name = data.name
+
+        if data.description is not None:
+            role.description = data.description
+        if data.level is not None:
+            role.level = data.level
+
+        if data.permissions is not None:
+            # Delete old permissions
+            await self.user_repo.session.execute(
+                select(RolePermissionORM).where(RolePermissionORM.role_id == role.id)
+            ) # wait we need a delete... simpler to get and delete
+            
+            # Since ORM we can just remove them
+            old_perms = await self.user_repo.session.execute(
+                select(RolePermissionORM).where(RolePermissionORM.role_id == role.id)
+            )
+            for old in old_perms.scalars().all():
+                await self.user_repo.session.delete(old)
+                
+            for perm_id in data.permissions:
+                res = await self.user_repo.session.execute(select(PermissionORM).where(PermissionORM.id == perm_id))
+                perm = res.scalar_one_or_none()
+                if not perm:
+                    raise ValueError(f"Permission '{perm_id}' not found")
+                    
+                # Scope enforcement
+                if role.scope == RoleScope.PLATFORM:
+                    if not (perm.name.startswith("platform.") or perm.name.startswith("auth.")):
+                        raise ValueError(f"Platform roles cannot contain permission '{perm.name}'")
+                elif role.scope == RoleScope.TENANT:
+                    if not (perm.name.startswith("tenant.") or perm.name.startswith("auth.")):
+                        raise ValueError(f"Tenant roles cannot contain permission '{perm.name}'")
+
+                rp = RolePermissionORM(role_id=role.id, permission_id=perm_id)
+                self.user_repo.session.add(rp)
+
+        await self.user_repo.session.commit()
+        return role
+
+    async def delete_role(self, role_id: uuid.UUID) -> None:
+        result = await self.user_repo.session.execute(select(RoleORM).where(RoleORM.id == role_id))
+        role = result.scalar_one_or_none()
+        if not role:
+            raise ValueError("Role not found")
+
+        if role.name in ("SUPER_ADMIN", "PLATFORM_ADMIN","TENANT_OWNER", ):
+            raise ValueError("Cannot delete system roles")
+
+        await self.user_repo.session.delete(role)
+        await self.user_repo.session.commit()

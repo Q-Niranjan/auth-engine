@@ -105,7 +105,7 @@ class WebAuthnService:
         # One-time use — delete before verification to prevent replay
         await self.redis.delete(reg_key)
 
-        challenge = base64.urlsafe_b64decode(raw + "==")  # re-pad
+        challenge = base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
 
         try:
             verified = WebAuthnStrategy.verify_registration_response(

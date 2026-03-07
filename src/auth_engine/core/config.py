@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     )
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
+    APP_URL: str = "http://localhost:3000"
 
     # Super Admin Bootstrap
     # Defaulting to values that should be changed in .env

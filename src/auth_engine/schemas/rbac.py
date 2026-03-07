@@ -25,6 +25,8 @@ class RoleResponse(BaseModel):
     scope: RoleScope | None = None
     level: int
     created_at: datetime
+    permissions: list[str] = []
+    permission_ids: list[uuid.UUID] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -38,3 +40,18 @@ class UserRoleResponse(BaseModel):
 
 class RoleAssignment(BaseModel):
     role_name: str
+    
+
+class RoleCreateRequest(BaseModel):
+    name: str
+    description: str | None = None
+    scope: RoleScope = RoleScope.TENANT
+    level: int = 0
+    permissions: list[uuid.UUID] = []
+
+
+class RoleUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    level: int | None = None
+    permissions: list[uuid.UUID] | None = None

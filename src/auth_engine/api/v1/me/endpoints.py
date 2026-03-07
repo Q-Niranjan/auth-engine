@@ -32,11 +32,38 @@ async def get_my_tenants(
     """
     List all tenants the current user belongs to.
     """
-    tenants = []
+    # Collect unique tenant IDs from the user's role assignments
+    seen_tenant_ids: set[uuid.UUID] = set()
+    response_tenants: list[TenantResponse] = []
+
     for ur in current_user.roles:
-        if ur.tenant and ur.tenant not in tenants:
-            tenants.append(ur.tenant)
-    return tenants
+        tenant = ur.tenant
+        if not tenant:
+            continue
+
+        if tenant.id in seen_tenant_ids:
+            continue
+        seen_tenant_ids.add(tenant.id)
+
+        # Build the response object explicitly using scalar fields only to
+        # avoid lazy-loading async relationships like `creator`/`owner`,
+        # which can trigger MissingGreenlet errors during serialization.
+        response_tenants.append(
+            TenantResponse(
+                id=tenant.id,
+                name=tenant.name,
+                description=tenant.description,
+                type=tenant.type,
+                owner_id=tenant.owner_id,
+                created_by=tenant.created_by,
+                created_at=tenant.created_at,
+                updated_at=tenant.updated_at,
+                owner=None,
+                creator=None,
+            )
+        )
+
+    return response_tenants
 
 
 @router.get("/tenants/{tenant_id}/permissions")

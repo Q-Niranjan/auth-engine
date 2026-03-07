@@ -91,6 +91,7 @@ async def register_complete(
             device_name=body.device_name,
         )
     except AuthenticationError as exc:
+        logger.error(f"[webauthn] register/complete failed: {exc}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     logger.info(f"[webauthn] register/complete user={current_user.id} device='{body.device_name}'")

@@ -57,4 +57,4 @@ class PermissionService:
             query = query.where(UserRoleORM.tenant_id == platform_subquery)
 
         result = await db.execute(query)
-        return result.scalar_one_or_none() is not None
+        return result.first() is not None
