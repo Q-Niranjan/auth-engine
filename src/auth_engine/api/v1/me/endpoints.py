@@ -15,7 +15,8 @@ from sqlalchemy.exc import IntegrityError
 router = APIRouter()
 
 
-@router.get("/", response_model=UserResponse)
+@router.get("", response_model=UserResponse)
+@router.get("/", response_model=UserResponse, include_in_schema=False)
 async def get_me(
     current_user: UserORM = Depends(get_current_active_user),
 ) -> UserResponse:
@@ -79,7 +80,8 @@ async def get_my_tenant_permissions(
 
     return {"tenant_id": tenant_id, "permissions": list(permissions)}
 
-@router.put("/", response_model=UserResponse)
+@router.put("", response_model=UserResponse)
+@router.put("/", response_model=UserResponse, include_in_schema=False)
 async def update_me(
     update_data: UserUpdate,
     current_user: UserORM = Depends(get_current_active_user),
