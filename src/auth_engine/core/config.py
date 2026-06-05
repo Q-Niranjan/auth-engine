@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "authengine"
     JWT_AUDIENCE: str = "authengine-api"
 
+    # OIDC RS256 signing key (mount into the container; must be readable by the app user)
+    OIDC_PRIVATE_KEY_PATH: str = "/app/oidc_private.pem"
+
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 10
     RATE_LIMIT_ENABLED: bool = True
