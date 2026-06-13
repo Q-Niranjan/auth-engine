@@ -1,9 +1,10 @@
 name: auth-engine · Build and Push Docker Image
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["auth-engine · Lint and Typecheck"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       ref_type:
@@ -36,12 +37,15 @@ jobs:
   build:
     name: Build and push Docker image
     runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Resolve image name
+      - name: Resolve image name and tag
         id: image
         run: |
           if [ -n "${{ inputs.docker_image }}" ]; then
@@ -49,26 +53,21 @@ jobs:
           else
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/authengine"
           fi
-          
-          if [ -n "${{ inputs.docker_tag }}" ]; then
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             TAG="${{ inputs.docker_tag }}"
           else
             TAG="latest"
           fi
-          
+
           echo "name=${IMAGE}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "full=${IMAGE}:${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout code (manual)
+      - name: Checkout code
         uses: actions/checkout@v4
-        if: github.event_name == 'workflow_dispatch'
         with:
-          ref: ${{ inputs.git_ref }}
-
-      - name: Checkout code (automatic)
-        uses: actions/checkout@v4
-        if: github.event_name != 'workflow_dispatch'
+          ref: ${{ github.event.workflow_run.head_sha || inputs.git_ref || github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -99,7 +98,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "**Source:** \`${{ inputs.ref_type }}:${{ inputs.git_ref }}\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**Source:** \`push:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "**Source:** \`main@${{ github.event.workflow_run.head_sha }}\`" >> $GITHUB_STEP_SUMMARY
           fi
           echo "**Image:** \`${{ steps.image.outputs.full }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Digest:** \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
