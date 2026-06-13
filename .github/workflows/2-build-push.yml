@@ -1,6 +1,9 @@
 name: auth-engine · Build and Push Docker Image
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       ref_type:
@@ -46,14 +49,26 @@ jobs:
           else
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/authengine"
           fi
+          
+          if [ -n "${{ inputs.docker_tag }}" ]; then
+            TAG="${{ inputs.docker_tag }}"
+          else
+            TAG="latest"
+          fi
+          
           echo "name=${IMAGE}" >> "$GITHUB_OUTPUT"
-          echo "tag=${{ inputs.docker_tag }}" >> "$GITHUB_OUTPUT"
-          echo "full=${IMAGE}:${{ inputs.docker_tag }}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "full=${IMAGE}:${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout code
+      - name: Checkout code (manual)
         uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch'
         with:
           ref: ${{ inputs.git_ref }}
+
+      - name: Checkout code (automatic)
+        uses: actions/checkout@v4
+        if: github.event_name != 'workflow_dispatch'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -81,7 +96,11 @@ jobs:
         run: |
           echo "## Image Built & Pushed to Docker Hub" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Source:** \`${{ inputs.ref_type }}:${{ inputs.git_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "**Source:** \`${{ inputs.ref_type }}:${{ inputs.git_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Source:** \`push:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "**Image:** \`${{ steps.image.outputs.full }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Digest:** \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
