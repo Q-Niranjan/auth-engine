@@ -1,3 +1,4 @@
+# Runs after 0-ci succeeds on main (workflow_run). Pushes :latest to Docker Hub.
 name: auth-engine · Build and Push Docker Image
 
 on:

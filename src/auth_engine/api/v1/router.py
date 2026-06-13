@@ -24,6 +24,7 @@ api_router.include_router(
 )
 api_router.include_router(public.oauth.router, prefix="/auth/oauth", tags=["oauth"])
 api_router.include_router(public.select_tenant.router, prefix="/auth", tags=["auth-tenant"])
+api_router.include_router(public.contact.router, prefix="/public", tags=["public"])
 
 
 api_router.include_router(platform.service_api_key.router, prefix="/auth", tags=["auth-introspect"])
@@ -39,6 +40,7 @@ api_router.include_router(platform.user.router, prefix="/platform", tags=["platf
 api_router.include_router(platform.tenant.router, prefix="/platform", tags=["platform-tenants"])
 api_router.include_router(platform.roles.router, prefix="/platform", tags=["platform-roles"])
 api_router.include_router(platform.audit.router, prefix="/platform", tags=["platform-audit"])
+api_router.include_router(platform.leads.router, prefix="/platform", tags=["platform-leads"])
 api_router.include_router(
     public.introspect.router, prefix="/platform/service-keys", tags=["platform-service-keys"]
 )

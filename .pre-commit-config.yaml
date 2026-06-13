@@ -10,7 +10,7 @@ repos:
 
       - id: ruff-format
         name: ruff format
-        entry: uv run ruff format --check src
+        entry: uv run ruff format src
         language: system
         pass_filenames: false
         types: [python]

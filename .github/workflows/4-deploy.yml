@@ -1,39 +1,126 @@
-name: auth-engine · Register Production Deployment
+# Runs after 1-build-push succeeds on main. Pulls image on EC2 + migrate.
+name: auth-engine · Deploy to Production
 
 on:
+  workflow_run:
+    workflows: ["auth-engine · Build and Push Docker Image"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      git_ref:
-        description: Branch, tag, or SHA to record as deployed
-        required: false
-        default: main
-        type: string
+
+concurrency:
+  group: production-deploy-api
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'ap-south-1' }}
+  EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
 
 jobs:
-  deployment:
-    name: Register GitHub deployment for api.authengine.org
+  deploy:
+    name: Deploy API to EC2
     runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    environment: production
     permissions:
       contents: read
       deployments: write
+      id-token: write
 
     steps:
-      - name: Checkout ref
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.git_ref }}
+      - name: Require EC2 instance id
+        run: |
+          INSTANCE_ID="$(printf '%s' "${EC2_INSTANCE_ID}" | tr -d '[:space:]')"
+          if [ -z "${INSTANCE_ID}" ]; then
+            echo "Set repository variable EC2_INSTANCE_ID (e.g. i-05bd906b129c9acb2)" >&2
+            exit 1
+          fi
+          if ! printf '%s' "${INSTANCE_ID}" | grep -Eq '^i-[0-9a-f]{8,17}$'; then
+            echo "Invalid EC2_INSTANCE_ID: '${INSTANCE_ID}'" >&2
+            echo "Repository variable must be only the instance id, with no spaces or newlines." >&2
+            exit 1
+          fi
+          if [ "${INSTANCE_ID}" != "${EC2_INSTANCE_ID}" ]; then
+            echo "Trimmed whitespace from EC2_INSTANCE_ID (check the repo variable in GitHub Settings)." >&2
+          fi
+          echo "EC2_INSTANCE_ID=${INSTANCE_ID}" >> "${GITHUB_ENV}"
 
-      - name: Create deployment record
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy via SSM
+        id: ssm
+        run: |
+          set -euo pipefail
+          REF="${{ github.event.workflow_run.head_sha || github.sha }}"
+          COMMENT="auth-engine-deploy-${REF:0:7}"
+
+          PARAMS="$(mktemp)"
+          cat >"${PARAMS}" <<'JSON'
+          {
+            "commands": [
+              "set -euo pipefail",
+              "if ! docker compose version >/dev/null 2>&1; then ARCH=$(uname -m); mkdir -p /usr/local/lib/docker/cli-plugins; curl -fsSL https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-${ARCH} -o /usr/local/lib/docker/cli-plugins/docker-compose; chmod +x /usr/local/lib/docker/cli-plugins/docker-compose; fi",
+              "cd /opt/authengine/compose",
+              "docker compose --env-file /opt/authengine/.env -f docker-compose.prod.yml pull api",
+              "docker compose --env-file /opt/authengine/.env -f docker-compose.prod.yml up -d --force-recreate api",
+              "docker exec authengine-api auth-engine migrate",
+              "docker compose --env-file /opt/authengine/.env -f docker-compose.prod.yml ps"
+            ]
+          }
+          JSON
+
+          COMMAND_ID="$(aws ssm send-command \
+            --instance-ids "${EC2_INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "${COMMENT}" \
+            --parameters "file://${PARAMS}" \
+            --query 'Command.CommandId' \
+            --output text)"
+          rm -f "${PARAMS}"
+          echo "command_id=${COMMAND_ID}" >> "${GITHUB_OUTPUT}"
+
+          STATUS="InProgress"
+          while [ "${STATUS}" = "InProgress" ] || [ "${STATUS}" = "Pending" ]; do
+            sleep 5
+            STATUS="$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${EC2_INSTANCE_ID}" \
+              --query 'Status' \
+              --output text 2>/dev/null || echo InProgress)"
+          done
+
+          aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${EC2_INSTANCE_ID}" \
+            --query '[Status, StandardOutputContent, StandardErrorContent]' \
+            --output text
+
+          if [ "${STATUS}" != "Success" ]; then
+            echo "SSM deploy failed with status: ${STATUS}" >&2
+            exit 1
+          fi
+
+      - name: Register GitHub deployment
+        if: success()
         uses: actions/github-script@v7
         with:
           script: |
+            const sha = context.payload.workflow_run?.head_sha || context.sha;
             const deployment = await github.rest.repos.createDeployment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: context.sha,
+              ref: sha,
               environment: "production",
               auto_merge: false,
-              required_contexts: []
+              required_contexts: [],
+              description: "EC2 SSM deploy (api + migrate)"
             });
 
             await github.rest.repos.createDeploymentStatus({
@@ -42,5 +129,14 @@ jobs:
               deployment_id: deployment.data.id,
               state: "success",
               environment_url: "https://api.authengine.org/docs",
-              log_url: "https://api.authengine.org/docs"
+              log_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
             });
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Production deploy (API)" >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- **Instance:** \`${EC2_INSTANCE_ID}\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- **SSM command:** \`${{ steps.ssm.outputs.command_id }}\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- **Health:** https://api.authengine.org/api/v1/health" >> "${GITHUB_STEP_SUMMARY}"

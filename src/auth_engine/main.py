@@ -10,7 +10,7 @@ from auth_engine.api.v1.oidc.discovery import well_known_router
 from auth_engine.api.v1.router import api_router
 from auth_engine.core.config import settings
 from auth_engine.core.mongodb import close_mongo, init_mongo, mongo_db
-from auth_engine.core.postgres import init_db
+from auth_engine.core.postgres import check_db_connection
 from auth_engine.core.redis import redis_client
 
 logging.basicConfig(
@@ -29,7 +29,7 @@ logging.getLogger("motor").setLevel(logging.WARNING)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting up AuthEngine...")
 
-    await init_db()
+    await check_db_connection()
     logger.info("postgres up for AuthEngine...")
     await init_mongo()
     logger.info("mongo up for AuthEngine...")
@@ -47,6 +47,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await collection.create_index("tenant_id")
         await collection.create_index("created_at")
         await collection.create_index([("tenant_id", 1), ("created_at", -1)])
+
+        leads = mongo_db["contact_leads"]
+        await leads.create_index("created_at")
+        await leads.create_index("email")
 
     yield
 

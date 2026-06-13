@@ -37,6 +37,20 @@ uv sync && cp .env.example .env.local
 uv run auth-engine-data all
 ```
 
+### Lint & format
+
+Install dev tools once, then run checks before pushing:
+
+```bash
+uv sync --extra dev
+uv run ruff check src              # lint
+uv run ruff format src             # auto-fix formatting
+uv run ruff format --check src     # CI-style check (no file changes)
+uv run pre-commit install          # optional: run checks on every commit
+```
+
+If `ruff format --check` fails, it only reports which files need changes. Run `uv run ruff format src` to fix them, then commit again.
+
 ## Production
 
 | Host | Role |

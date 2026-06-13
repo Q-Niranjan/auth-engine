@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -26,7 +27,13 @@ class Base(DeclarativeBase):
     pass
 
 
+async def check_db_connection() -> None:
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+
+
 async def init_db() -> None:
+    """Create tables from models — local dev / auth-engine-data --create-tables only."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

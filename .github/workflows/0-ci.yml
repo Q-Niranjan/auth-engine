@@ -1,3 +1,4 @@
+# Pipeline: merge to main → 0-ci → 1-build-push → 4-deploy (EC2)
 name: auth-engine · Lint and Typecheck
 
 on:
@@ -23,10 +24,23 @@ jobs:
         run: uv sync --frozen --extra dev
 
       - name: Ruff check
-        run: uv run ruff check src
+        run: |
+          if ! uv run ruff check src; then
+            echo "::error::Ruff lint failed. Run: uv run ruff check src --fix"
+            exit 1
+          fi
 
       - name: Ruff format
-        run: uv run ruff format --check src
+        run: |
+          if ! uv run ruff format --check --diff src; then
+            echo ""
+            echo "::error::Code is not formatted."
+            echo "Fix locally with:"
+            echo "  uv sync --extra dev"
+            echo "  uv run ruff format src"
+            echo "Then commit the formatted files."
+            exit 1
+          fi
 
       - name: Mypy
         run: uv run mypy src
