@@ -13,6 +13,30 @@ Backend API for **AuthEngine** — FastAPI IAM, multi-tenancy, OIDC provider, an
 | Deployment | [deployment.md](https://docs.authengine.org/deployment/) |
 | Security | [security-overview.md](https://docs.authengine.org/security-overview/) |
 
+## What this repository is
+
+FastAPI service that owns the REST API, database migrations (Alembic), and the OIDC provider. It does **not** seed RBAC or the super admin on startup — run **[auth-engine-data](https://github.com/auth-engine/auth-engine-data)** after migrations. Docker Compose manifests live in **[auth-engine-infra](https://github.com/auth-engine/auth-engine-infra)**.
+
+## Local development
+
+Requires Python **3.12+** and [uv](https://docs.astral.sh/uv/). Postgres, MongoDB, and Redis must be running (or use Compose from `auth-engine-infra`).
+
+```bash
+cd auth-engine
+uv sync
+cp .env.example .env.local
+auth-engine migrate
+auth-engine run              # optional: --reload
+```
+
+After migrations, seed roles and the super admin:
+
+```bash
+cd ../auth-engine-data
+uv sync && cp .env.example .env.local
+uv run auth-engine-data all
+```
+
 ## Production
 
 | Host | Role |
@@ -43,7 +67,8 @@ See [Contributing](https://docs.authengine.org/contributing/) or [CONTRIBUTING.m
 
 | Repository | Role |
 |------------|------|
-| [auth-engine-dashboard](https://github.com/auth-engine/auth-engine-dashboard) | Admin dashboard |
+| [auth-engine-dashboard](https://github.com/auth-engine/auth-engine-dashboard) | Next.js admin dashboard |
 | [auth-engine-data](https://github.com/auth-engine/auth-engine-data) | Roles, permissions & super-admin seeding |
 | [auth-engine-docs](https://github.com/auth-engine/auth-engine-docs) | Platform documentation |
 | [auth-engine-infra](https://github.com/auth-engine/auth-engine-infra) | Terraform & Docker Compose |
+| [.github](https://github.com/auth-engine/.github) | Org profile, contributing & security policy |
