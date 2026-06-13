@@ -1,22 +1,30 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+  - repo: local
     hooks:
-      - id: ruff
-        args: ["--fix"]
-      - id: ruff-format
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check src
+        language: system
+        pass_filenames: false
+        types: [python]
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
-    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --check src
+        language: system
+        pass_filenames: false
+        types: [python]
+
       - id: mypy
-        exclude: ^alembic/
-        additional_dependencies:
-          - pydantic
-          - sqlalchemy
-          - types-redis
-          
+        name: mypy
+        entry: bash -c 'PYTHONPATH=src uv run mypy src'
+        language: system
+        pass_filenames: false
+        types: [python]
+
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.4.0
     hooks:
       - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        exclude: ^alembic/|^\.env\.example$

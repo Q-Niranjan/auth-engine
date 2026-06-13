@@ -47,13 +47,6 @@ class AuthEngineOAuthStrategy(BaseOAuthStrategy):
     URL patterns are derived from AUTHENGINE_BASE_URL at construction time —
     no runtime discovery, no async factory. Same interface as Google/GitHub/Microsoft.
 
-    Example:
-        strategy = AuthEngineOAuthStrategy(
-            base_url="https://api.authengine.org",
-            client_id="abc123",
-            client_secret="secret",
-            redirect_uri="http://localhost:8000/api/v1/auth/oauth/authengine/callback",
-        )
     """
 
     DEFAULT_SCOPES = ["openid", "email", "profile"]

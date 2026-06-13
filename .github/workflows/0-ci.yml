@@ -20,10 +20,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Install lint tools
-        run: uv pip install ruff==0.4.4 mypy==1.10.0 types-redis
+        run: uv sync --frozen --extra dev
 
       - name: Ruff check
         run: uv run ruff check src

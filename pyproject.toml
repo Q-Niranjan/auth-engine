@@ -60,5 +60,12 @@ build-backend = "setuptools.build_meta"
 
 [project.optional-dependencies]
 dev = [
+    "detect-secrets==1.4.0",
+    "mypy==1.10.0",
+    "pre-commit>=4.0.0",
+    "ruff==0.4.4",
     "types-redis>=4.6.0.20241004",
+    "types-python-jose",
+    "types-passlib",
+    "boto3-stubs[ses]",
 ]
