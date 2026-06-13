@@ -7,11 +7,9 @@ from fastapi import FastAPI
 
 from auth_engine.api.v1.oidc.discovery import well_known_router
 from auth_engine.api.v1.router import api_router
-from auth_engine.core.bootstrap import seed_super_admin
 from auth_engine.core.config import settings
 from auth_engine.core.mongodb import close_mongo, init_mongo, mongo_db
-from auth_engine.core.postgres import AsyncSessionLocal, init_db
-from auth_engine.core.rbac_seed import seed_roles
+from auth_engine.core.postgres import init_db
 from auth_engine.core.redis import redis_client
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -38,10 +36,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await redis_client.connect()
     logger.info("redis up for AuthEngine...")
 
-    # # Bootstrap system data
-    async with AsyncSessionLocal() as session:
-        await seed_roles(session)
-        await seed_super_admin(session)
+    # NOTE: Roles/permissions and the super admin are no longer seeded here.
+    # Seeding lives in the separate `auth-engine-data` repo — run
+    # `auth-engine-data all` after migrations when provisioning an environment.
 
     # Initialize Audit Log Indexes
     if mongo_db is not None:
