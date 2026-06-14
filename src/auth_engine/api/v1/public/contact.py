@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from auth_engine.core.mongodb import mongo_db
+from auth_engine.core import mongodb
 from auth_engine.schemas.contact import ContactLeadCreate
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,8 @@ async def submit_contact_lead(
             detail="Consent is required to submit this form.",
         )
 
-    if mongo_db is None:
+    db = mongodb.mongo_db
+    if db is None:
         logger.error("MongoDB unavailable — cannot save contact lead")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -37,7 +38,7 @@ async def submit_contact_lead(
         "user_agent": request.headers.get("user-agent"),
     }
 
-    await mongo_db["contact_leads"].insert_one(doc)
+    await db["contact_leads"].insert_one(doc)
     logger.info("Contact lead saved for %s at %s", payload.email, payload.company)
 
     return {"message": "Thanks! Our team will reach out within 1 business day."}

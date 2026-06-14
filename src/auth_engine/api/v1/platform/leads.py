@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from auth_engine.api.dependencies.rbac import check_platform_permission
-from auth_engine.core.mongodb import mongo_db
+from auth_engine.core import mongodb
 from auth_engine.models import UserORM
 from auth_engine.schemas.contact import ContactLead
 
@@ -21,7 +21,8 @@ async def list_contact_leads(
     current_user: UserORM = Depends(check_platform_permission("platform.leads.view")),
 ) -> list[ContactLead]:
     """List marketing contact form leads stored in MongoDB."""
-    if mongo_db is None:
+    db = mongodb.mongo_db
+    if db is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Lead storage is temporarily unavailable.",
@@ -34,9 +35,7 @@ async def list_contact_leads(
         query["company"] = {"$regex": company, "$options": "i"}
 
     try:
-        cursor = (
-            mongo_db["contact_leads"].find(query).sort("created_at", -1).skip(skip).limit(limit)
-        )
+        cursor = db["contact_leads"].find(query).sort("created_at", -1).skip(skip).limit(limit)
         raw = await cursor.to_list(length=limit)
         leads: list[ContactLead] = []
         for doc in raw:

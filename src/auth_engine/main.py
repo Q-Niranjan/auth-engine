@@ -8,8 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth_engine.api.v1.oidc.discovery import well_known_router
 from auth_engine.api.v1.router import api_router
+from auth_engine.core import mongodb
 from auth_engine.core.config import settings
-from auth_engine.core.mongodb import close_mongo, init_mongo, mongo_db
+from auth_engine.core.mongodb import close_mongo, init_mongo
 from auth_engine.core.postgres import check_db_connection
 from auth_engine.core.redis import redis_client
 
@@ -41,14 +42,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # `auth-engine-data all` after migrations when provisioning an environment.
 
     # Initialize Audit Log Indexes
-    if mongo_db is not None:
-        collection = mongo_db["audit_logs"]
+    if mongodb.mongo_db is not None:
+        collection = mongodb.mongo_db["audit_logs"]
         await collection.create_index("actor_id")
         await collection.create_index("tenant_id")
         await collection.create_index("created_at")
         await collection.create_index([("tenant_id", 1), ("created_at", -1)])
 
-        leads = mongo_db["contact_leads"]
+        leads = mongodb.mongo_db["contact_leads"]
         await leads.create_index("created_at")
         await leads.create_index("email")
 
