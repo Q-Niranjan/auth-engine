@@ -34,4 +34,4 @@ async def get_tenant_audit_logs(
 
     cursor = audit_service.collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
     logs = await cursor.to_list(length=limit)
-    return logs
+    return [AuditLog.model_validate(log) for log in logs]

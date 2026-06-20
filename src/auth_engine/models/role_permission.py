@@ -11,11 +11,15 @@ class RolePermissionORM(Base):
     __tablename__ = "role_permissions"
 
     role_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("roles.id"), primary_key=True
+        UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
     )
     permission_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("permissions.id"), primary_key=True
     )
 
-    role = relationship("RoleORM", back_populates="permissions")
+    role = relationship(
+        "RoleORM",
+        back_populates="permissions",
+        passive_deletes=True,
+    )
     permission = relationship("PermissionORM", back_populates="roles", lazy="selectin")

@@ -20,9 +20,12 @@ class TenantSMSConfigORM(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id"), unique=True, nullable=False
+        UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True
     )
-    provider: Mapped[SMSProviderType] = mapped_column(SQLEnum(SMSProviderType), nullable=False)
+    provider: Mapped[SMSProviderType] = mapped_column(
+        SQLEnum(SMSProviderType, name="smsprovidertype"),
+        nullable=False,
+    )
     encrypted_credentials: Mapped[str] = mapped_column(String, nullable=False)
     from_number: Mapped[str] = mapped_column(String, nullable=False)
     account_sid: Mapped[str | None] = mapped_column(String, nullable=True)

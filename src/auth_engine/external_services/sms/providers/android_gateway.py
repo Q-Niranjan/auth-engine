@@ -2,7 +2,6 @@ import logging
 
 import httpx
 
-from auth_engine.core.config import settings
 from auth_engine.external_services.sms.base import SMSProvider, SMSProviderConfig
 
 logger = logging.getLogger(__name__)
@@ -19,26 +18,18 @@ class AndroidGatewaySMSProvider(SMSProvider):
     - Private server mode:  https://<your-host>
     - Cloud mode:           https://api.sms-gate.app/3rdparty/v1
 
-    Credentials/endpoint resolution:
-    - Base URL  -> config.account_sid (per-tenant) else settings.SMS_GATEWAY_URL.
-    - Basic auth -> config.api_key as "username:password" (per-tenant, encrypted)
-      else settings.SMS_GATEWAY_USERNAME / settings.SMS_GATEWAY_PASSWORD.
-
-    Cost: only the existing SIM's SMS allowance/recharge — no per-message fees.
+    Credentials/endpoint resolution (per-tenant DB config):
+    - Base URL  -> config.account_sid
+    - Basic auth -> config.api_key as "username:password" (encrypted at rest)
     """
 
     def __init__(self, config: SMSProviderConfig) -> None:
-        self.base_url = str(config.account_sid or getattr(settings, "SMS_GATEWAY_URL", "")).rstrip(
-            "/"
-        )
+        self.base_url = str(config.account_sid or "").rstrip("/")
 
         username: str | None = None
         password: str | None = None
         if config.api_key and ":" in config.api_key:
             username, password = config.api_key.split(":", 1)
-        else:
-            username = getattr(settings, "SMS_GATEWAY_USERNAME", "") or None
-            password = getattr(settings, "SMS_GATEWAY_PASSWORD", "") or None
 
         self.username = username
         self.password = password

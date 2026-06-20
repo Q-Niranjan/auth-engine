@@ -5,7 +5,11 @@ from typing import Any
 import redis.asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_engine.auth_strategies.constants import MFA_PENDING_PREFIX, MFA_PENDING_TTL_SECONDS
+from auth_engine.auth_strategies.constants import (
+    MFA_ENROLLMENT_PREFIX,
+    MFA_PENDING_PREFIX,
+    MFA_PENDING_TTL_SECONDS,
+)
 from auth_engine.auth_strategies.totp import TOTPStrategy
 from auth_engine.core.config import settings
 from auth_engine.core.exceptions import AuthenticationError, InvalidTokenError
@@ -91,18 +95,100 @@ class TOTPService:
 
     async def store_mfa_pending(self, user_id: str, session_context: dict[str, Any]) -> str:
         """Store session context in Redis and return a pending token."""
-        token = self.issue_mfa_pending_token(user_id)
+        return await self._store_pending_state(
+            user_id=user_id,
+            session_context=session_context,
+            token_type="mfa_pending",
+            redis_prefix=MFA_PENDING_PREFIX,
+        )
+
+    async def store_mfa_enrollment_pending(
+        self, user_id: str, session_context: dict[str, Any]
+    ) -> str:
+        """Store post-password session context while the user completes MFA enrollment."""
+        return await self._store_pending_state(
+            user_id=user_id,
+            session_context=session_context,
+            token_type="mfa_enrollment_pending",
+            redis_prefix=MFA_ENROLLMENT_PREFIX,
+        )
+
+    async def _store_pending_state(
+        self,
+        *,
+        user_id: str,
+        session_context: dict[str, Any],
+        token_type: str,
+        redis_prefix: str,
+    ) -> str:
+        import json
+
+        token = token_manager.create_access_token(
+            data={"sub": user_id, "type": token_type},
+            expires_delta=timedelta(seconds=MFA_PENDING_TTL_SECONDS),
+        )
         payload = token_manager.decode_token(token)
         jti = payload.get("jti") or str(uuid.uuid4())
 
-        import json
-
-        key = f"{MFA_PENDING_PREFIX}{user_id}"
+        key = f"{redis_prefix}{user_id}"
         await self.redis.setex(
             key, MFA_PENDING_TTL_SECONDS, json.dumps({**session_context, "jti": jti})
         )
-
         return token
+
+    async def _resolve_enrollment_user(
+        self, mfa_enrollment_token: str
+    ) -> tuple[UserORM, dict[str, Any]]:
+        import json
+
+        try:
+            payload = token_manager.decode_token(mfa_enrollment_token)
+        except ValueError as exc:
+            raise InvalidTokenError("MFA enrollment session expired or invalid") from exc
+
+        if payload.get("type") != "mfa_enrollment_pending":
+            raise InvalidTokenError("Invalid token type for MFA enrollment")
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise InvalidTokenError("MFA enrollment token missing user identity")
+
+        key = f"{MFA_ENROLLMENT_PREFIX}{user_id}"
+        raw = await self.redis.get(key)
+        if not raw:
+            raise InvalidTokenError("MFA enrollment session expired. Please log in again.")
+
+        user = await self.user_repo.get(uuid.UUID(user_id))
+        if not user:
+            raise AuthenticationError("User not found")
+
+        return user, json.loads(raw)
+
+    async def begin_enrollment_with_token(self, mfa_enrollment_token: str) -> dict[str, str]:
+        user, _ = await self._resolve_enrollment_user(mfa_enrollment_token)
+        return await self.begin_enrollment(user)
+
+    async def confirm_enrollment_with_token(
+        self,
+        mfa_enrollment_token: str,
+        code: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> dict[str, Any]:
+        user, session_context = await self._resolve_enrollment_user(mfa_enrollment_token)
+        await self.confirm_enrollment(user, code)
+
+        key = f"{MFA_ENROLLMENT_PREFIX}{user.id}"
+        await self.redis.delete(key)
+
+        session_id = await self.session_service.create_session(
+            user_id=user.id,
+            expires_in_seconds=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+            ip_address=ip_address or session_context.get("ip_address", "unknown"),
+            user_agent=user_agent or session_context.get("user_agent", "unknown"),
+        )
+
+        return self.auth_service.create_tokens(user, session_id=session_id)
 
     async def complete_mfa(
         self,

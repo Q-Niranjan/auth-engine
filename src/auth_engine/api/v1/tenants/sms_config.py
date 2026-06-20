@@ -1,28 +1,16 @@
-"""
-Tenant SMS Config endpoints.
-
-GET    /tenants/{tenant_id}/sms-config
-POST   /tenants/{tenant_id}/sms-config
-PUT    /tenants/{tenant_id}/sms-config
-DELETE /tenants/{tenant_id}/sms-config
-POST   /tenants/{tenant_id}/sms-config/test
-
-Models, repositories, resolvers and factories ALREADY EXIST.
-Only the API endpoint layer is new.
-"""
+"""Tenant SMS configuration endpoints."""
 
 import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.deps import get_db
 from auth_engine.api.dependencies.rbac import require_permission
-from auth_engine.core.config import settings
 from auth_engine.core.security import SecurityUtils
-from auth_engine.external_services.sms.resolver import SMSServiceResolver
+from auth_engine.external_services.sms.base import SMSProviderConfig
+from auth_engine.external_services.sms.factory import SMSServiceFactory
 from auth_engine.models import UserORM
 from auth_engine.models.sms_config import SMSProviderType as ModelSMSProviderType
 from auth_engine.models.sms_config import TenantSMSConfigORM
@@ -31,17 +19,21 @@ from auth_engine.schemas.sms_config import (
     SMSConfigTestRequest,
     SMSConfigTestResponse,
     TenantSMSConfigCreate,
-    TenantSMSConfigFallbackResponse,
+    TenantSMSConfigListResponse,
     TenantSMSConfigResponse,
     TenantSMSConfigUpdate,
 )
+from auth_engine.services.communications_config_service import (
+    deactivate_other_sms_configs,
+    tenant_has_sms_configs,
+)
+from auth_engine.services.social_provider_service import get_canonical_platform_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 def _credential_hint(encrypted: str) -> str:
-    """Decrypt and return a safe hint (first 6 chars + ****)."""
     try:
         raw = SecurityUtils.decrypt_data(encrypted)
         return raw[:6] + "****" if len(raw) > 6 else raw[:3] + "****"
@@ -61,27 +53,38 @@ def _to_response(row: TenantSMSConfigORM) -> TenantSMSConfigResponse:
     )
 
 
+async def _platform_default(db: AsyncSession, tenant_id: uuid.UUID) -> tuple[str, str] | None:
+    platform_id = await get_canonical_platform_tenant_id(db)
+    if not platform_id or platform_id == tenant_id:
+        return None
+    repo = TenantSMSConfigRepository(db)
+    active = await repo.get_active_by_tenant_id(platform_id)
+    if not active:
+        return None
+    return active.provider.value, active.from_number
+
+
 @router.get(
     "/{tenant_id}/sms-config",
-    response_model=TenantSMSConfigResponse | TenantSMSConfigFallbackResponse,
-    summary="Get tenant SMS configuration",
+    response_model=TenantSMSConfigListResponse,
+    summary="List tenant SMS configurations",
 )
-async def get_sms_config(
+async def list_sms_configs(
     tenant_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.view")),
-) -> TenantSMSConfigResponse | TenantSMSConfigFallbackResponse:
-    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
-    result = await db.execute(query)
-    row = result.scalar_one_or_none()
+) -> TenantSMSConfigListResponse:
+    repo = TenantSMSConfigRepository(db)
+    rows = await repo.list_by_tenant_id(tenant_id)
+    platform_default = await _platform_default(db, tenant_id)
+    has_active = any(row.is_active for row in rows)
 
-    if not row:
-        return TenantSMSConfigFallbackResponse(
-            platform_provider=settings.SMS_PROVIDER,
-            platform_from_number=settings.SMS_SENDER,
-        )
-
-    return _to_response(row)
+    return TenantSMSConfigListResponse(
+        items=[_to_response(row) for row in rows],
+        using_platform_default=not has_active and platform_default is not None,
+        platform_provider=platform_default[0] if platform_default else None,
+        platform_from_number=platform_default[1] if platform_default else None,
+    )
 
 
 @router.post(
@@ -96,48 +99,40 @@ async def create_sms_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> TenantSMSConfigResponse:
-    # Check existing
-    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
-    result = await db.execute(query)
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="SMS config already exists for this tenant. Use PUT to update.",
-        )
-
+    activate = body.set_active or not await tenant_has_sms_configs(db, tenant_id)
     row = TenantSMSConfigORM(
         tenant_id=tenant_id,
         provider=ModelSMSProviderType(body.provider.value),
         encrypted_credentials=SecurityUtils.encrypt_data(body.api_key),
         from_number=body.from_number,
         account_sid=body.account_sid,
-        is_active=True,
+        is_active=activate,
     )
     db.add(row)
+    await db.flush()
+    if activate:
+        await deactivate_other_sms_configs(db, tenant_id, keep_id=row.id)
     await db.commit()
     await db.refresh(row)
     return _to_response(row)
 
 
 @router.put(
-    "/{tenant_id}/sms-config",
+    "/{tenant_id}/sms-config/{config_id}",
     response_model=TenantSMSConfigResponse,
     summary="Update tenant SMS configuration",
 )
 async def update_sms_config(
     tenant_id: uuid.UUID,
+    config_id: uuid.UUID,
     body: TenantSMSConfigUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> TenantSMSConfigResponse:
-    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
-    result = await db.execute(query)
-    row = result.scalar_one_or_none()
+    repo = TenantSMSConfigRepository(db)
+    row = await repo.get_by_id(tenant_id, config_id)
     if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No SMS config found for this tenant.",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SMS config not found.")
 
     if body.provider is not None:
         row.provider = ModelSMSProviderType(body.provider.value)
@@ -147,8 +142,11 @@ async def update_sms_config(
         row.from_number = body.from_number
     if body.account_sid is not None:
         row.account_sid = body.account_sid
-    if body.is_active is not None:
-        row.is_active = body.is_active
+    if body.set_active is True:
+        row.is_active = True
+        await deactivate_other_sms_configs(db, tenant_id, keep_id=row.id)
+    elif body.set_active is False:
+        row.is_active = False
 
     await db.commit()
     await db.refresh(row)
@@ -156,57 +154,57 @@ async def update_sms_config(
 
 
 @router.delete(
-    "/{tenant_id}/sms-config",
+    "/{tenant_id}/sms-config/{config_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete tenant SMS configuration (falls back to platform default)",
+    summary="Delete tenant SMS configuration",
 )
 async def delete_sms_config(
     tenant_id: uuid.UUID,
+    config_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> None:
-    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
-    result = await db.execute(query)
-    row = result.scalar_one_or_none()
+    repo = TenantSMSConfigRepository(db)
+    row = await repo.get_by_id(tenant_id, config_id)
     if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No SMS config found for this tenant.",
-        )
-
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SMS config not found.")
     await db.delete(row)
     await db.commit()
 
 
 @router.post(
-    "/{tenant_id}/sms-config/test",
+    "/{tenant_id}/sms-config/{config_id}/test",
     response_model=SMSConfigTestResponse,
-    summary="Send a test SMS using the tenant's configured provider",
+    summary="Send a test SMS using a specific configuration",
 )
 async def test_sms_config(
     tenant_id: uuid.UUID,
+    config_id: uuid.UUID,
     body: SMSConfigTestRequest,
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> SMSConfigTestResponse:
-    query = select(TenantSMSConfigORM).where(TenantSMSConfigORM.tenant_id == tenant_id)
-    result = await db.execute(query)
-    row = result.scalar_one_or_none()
+    repo = TenantSMSConfigRepository(db)
+    row = await repo.get_by_id(tenant_id, config_id)
     if not row:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No SMS config found for this tenant. Configure one first.",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SMS config not found.")
 
     try:
-        repo = TenantSMSConfigRepository(db)
-        resolver = SMSServiceResolver(repo)
-        sms_service = await resolver.resolve(tenant_id)
+        api_key = SecurityUtils.decrypt_data(row.encrypted_credentials)
+        sms_service = SMSServiceFactory.create(
+            SMSProviderConfig(
+                provider_type=row.provider.value,
+                api_key=api_key,
+                from_number=row.from_number,
+                is_active=row.is_active,
+                account_sid=row.account_sid,
+            )
+        )
         success = await sms_service.send_sms(
             body.to_number,
             "AuthEngine SMS Config Test — this is a test message.",
         )
         return SMSConfigTestResponse(success=success)
     except Exception as e:
-        logger.error(f"SMS config test failed for tenant {tenant_id}: {e}")
+        logger.error("SMS config test failed for tenant %s config %s: %s", tenant_id, config_id, e)
         return SMSConfigTestResponse(success=False, error=str(e))

@@ -35,6 +35,10 @@ from auth_engine.schemas.magic_link import (
     MagicLinkVerifyResponse,
 )
 from auth_engine.services.magic_link_service import MagicLinkService
+from auth_engine.services.tenant_auth_config_service import (
+    get_or_create_auth_config,
+    is_method_allowed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +79,14 @@ async def request_magic_link(
 ) -> MagicLinkRequestResponse:
     svc = MagicLinkService(db, redis_conn, email_resolver)
     ip = request.client.host if request.client else None
+
+    if body.tenant_id:
+        auth_config = await get_or_create_auth_config(db, body.tenant_id)
+        if not is_method_allowed(auth_config.allowed_methods, "magic_link"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Magic link login is not enabled for this tenant.",
+            )
 
     try:
         await svc.request_magic_link(

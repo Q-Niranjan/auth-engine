@@ -45,7 +45,7 @@ async def get_platform_audit_logs(
     try:
         cursor = audit_service.collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
         logs = await cursor.to_list(length=limit)
-        return logs
+        return [AuditLog.model_validate(log) for log in logs]
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -99,7 +99,7 @@ async def get_tenant_audit_logs(
     try:
         cursor = audit_service.collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
         logs = await cursor.to_list(length=limit)
-        return logs
+        return [AuditLog.model_validate(log) for log in logs]
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -53,3 +53,10 @@ class OAuthAccountLinkResponse(BaseModel):
     message: str
     provider: str
     provider_email: str | None
+
+
+class PublicOAuthProviderResponse(BaseModel):
+    """Public login page — active provider id and owning tenant, no secrets."""
+
+    provider: OAuthProvider
+    tenant_id: uuid.UUID

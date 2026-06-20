@@ -13,6 +13,7 @@ for register because a user must already be logged in to attach a passkey).
 """
 
 import logging
+import uuid
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -32,10 +33,25 @@ from auth_engine.schemas.webauthn import (
     WebAuthnRegisterCompleteRequest,
     WebAuthnRegisterCompleteResponse,
 )
+from auth_engine.services.tenant_auth_config_service import (
+    get_or_create_auth_config,
+    is_method_allowed,
+)
 from auth_engine.services.webauthn_service import WebAuthnService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _ensure_passkey_allowed(db: AsyncSession, tenant_id: uuid.UUID | None) -> None:
+    if not tenant_id:
+        return
+    auth_config = await get_or_create_auth_config(db, tenant_id)
+    if not is_method_allowed(auth_config.allowed_methods, "passkey"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Passkey login is not enabled for this tenant.",
+        )
 
 
 # ── Registration ──────────────────────────────────────────────────────────────
@@ -121,6 +137,7 @@ async def authenticate_begin(
     db: AsyncSession = Depends(get_db),
     redis_conn: aioredis.Redis = Depends(get_redis),
 ) -> WebAuthnAuthBeginResponse:
+    await _ensure_passkey_allowed(db, body.tenant_id)
     service = WebAuthnService(db=db, redis=redis_conn)
     try:
         options = await service.begin_authentication(email=body.email)
@@ -147,6 +164,7 @@ async def authenticate_complete(
     db: AsyncSession = Depends(get_db),
     redis_conn: aioredis.Redis = Depends(get_redis),
 ) -> UserLoginResponse:
+    await _ensure_passkey_allowed(db, body.tenant_id)
     service = WebAuthnService(db=db, redis=redis_conn)
 
     ip = request.client.host if request.client else None

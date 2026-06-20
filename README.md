@@ -15,7 +15,9 @@ Backend API for **AuthEngine** — FastAPI IAM, multi-tenancy, OIDC provider, an
 
 ## What this repository is
 
-FastAPI service that owns the REST API, database migrations (Alembic), and the OIDC provider. It does **not** seed RBAC or the super admin on startup — run **[auth-engine-data](https://github.com/auth-engine/auth-engine-data)** after migrations. Docker Compose manifests live in **[auth-engine-infra](https://github.com/auth-engine/auth-engine-infra)**.
+FastAPI service that owns the REST API, database migrations (Alembic), and the OIDC provider. It does **not** seed RBAC, the super admin, or platform-tenant config on startup — run **[auth-engine-data](https://github.com/auth-engine/auth-engine-data)** after migrations. Docker Compose manifests live in **[auth-engine-infra](https://github.com/auth-engine/auth-engine-infra)**.
+
+Platform email, SMS, social OAuth, and password policy are stored in the **database** (platform tenant). Seed them once via `auth-engine-data` or configure them in the dashboard.
 
 ## Local development
 
@@ -29,13 +31,16 @@ auth-engine migrate
 auth-engine run              # optional: --reload
 ```
 
-After migrations, seed roles and the super admin:
+After migrations, seed roles, super admin, and platform tenant config:
 
 ```bash
 cd ../auth-engine-data
 uv sync && cp .env.example .env.local
+# POSTGRES_URL + SECRET_KEY (same as auth-engine) + SUPERADMIN_*
 uv run auth-engine-data all
 ```
+
+Optional platform email/SMS/OAuth/password vars are documented in `auth-engine-data/.env.example`. Use `auth-engine-data platform-config` to re-run that step only.
 
 ### Lint & format
 
@@ -69,7 +74,7 @@ cd auth-engine-infra/compose
 docker compose up -d --build
 ```
 
-After migrations, seed roles and the super admin with **[auth-engine-data](https://github.com/auth-engine/auth-engine-data)** (`auth-engine-data all`). The API does not seed on startup.
+After migrations, seed with **[auth-engine-data](https://github.com/auth-engine/auth-engine-data)** (`auth-engine-data all`). The API does not seed on startup.
 
 Pre-built production images and CI/CD: [Deployment guide](https://docs.authengine.org/deployment/).
 
@@ -82,7 +87,7 @@ See [Contributing](https://docs.authengine.org/contributing/) or [CONTRIBUTING.m
 | Repository | Role |
 |------------|------|
 | [auth-engine-dashboard](https://github.com/auth-engine/auth-engine-dashboard) | Next.js admin dashboard |
-| [auth-engine-data](https://github.com/auth-engine/auth-engine-data) | Roles, permissions & super-admin seeding |
+| [auth-engine-data](https://github.com/auth-engine/auth-engine-data) | Seeding (RBAC, super admin, platform config) |
 | [auth-engine-docs](https://github.com/auth-engine/auth-engine-docs) | Platform documentation |
 | [auth-engine-infra](https://github.com/auth-engine/auth-engine-infra) | Terraform & Docker Compose |
 | [.github](https://github.com/auth-engine/.github) | Org profile, contributing & security policy |

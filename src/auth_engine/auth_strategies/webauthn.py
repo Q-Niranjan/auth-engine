@@ -18,8 +18,10 @@ Install dependency
 """
 
 import base64
+import json
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 import webauthn
 from webauthn.helpers.structs import (
@@ -38,8 +40,6 @@ def _rp_id() -> str:
     configured = getattr(settings, "WEBAUTHN_RP_ID", "")
     if configured:
         return configured
-
-    from urllib.parse import urlparse
 
     url = getattr(settings, "APP_URL", "http://localhost:8000")
     host = urlparse(url).hostname or "localhost"
@@ -113,7 +113,6 @@ class WebAuthnStrategy:
 
         # py_webauthn returns a dataclass — convert to dict for JSON transport
         options_dict = webauthn.options_to_json(options)
-        import json
 
         return json.loads(options_dict), challenge
 
@@ -132,7 +131,6 @@ class WebAuthnStrategy:
             aaguid         : str
             uv_flag        : bool
         """
-        import json
 
         verified = webauthn.verify_registration_response(
             credential=json.dumps(credential_json),
@@ -180,8 +178,6 @@ class WebAuthnStrategy:
             timeout=60_000,
         )
 
-        import json
-
         options_dict = webauthn.options_to_json(options)
         return json.loads(options_dict), challenge
 
@@ -200,7 +196,6 @@ class WebAuthnStrategy:
             sign_count : int   — new value to persist
             uv_flag    : bool
         """
-        import json
 
         verified = webauthn.verify_authentication_response(
             credential=json.dumps(credential_json),
@@ -221,13 +216,9 @@ class WebAuthnStrategy:
 def _get_expected_origin() -> str:
     """Expected ceremony origin — the frontend where passkeys are used.
 
-    Prefers DASHBOARD_URL (the dashboard origin) and falls back to APP_URL.
+    Uses APP_URL as the origin.
     """
-    url_str = str(
-        getattr(settings, "DASHBOARD_URL", None)
-        or getattr(settings, "APP_URL", "http://localhost:8000")
-    )
-    from urllib.parse import urlparse
+    url_str = str(getattr(settings, "APP_URL", "http://localhost:8000"))
 
     p = urlparse(url_str)
     scheme = str(p.scheme)

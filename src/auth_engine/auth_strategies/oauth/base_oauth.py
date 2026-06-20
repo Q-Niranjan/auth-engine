@@ -51,6 +51,7 @@ class BaseOAuthStrategy(TokenBasedStrategy):
             client_id=self.client_id,
             client_secret=self.client_secret,
             redirect_uri=self.redirect_uri,
+            follow_redirects=True,
             verify=False,  # TODO: remove in production
         )
 
@@ -116,8 +117,9 @@ class BaseOAuthStrategy(TokenBasedStrategy):
             Raw profile data from provider (provider-specific format)
         """
         async with httpx.AsyncClient(
-            verify=False
-        ) as client:  # TODO: remove  verify false in production
+            follow_redirects=True,
+            verify=False,
+        ) as client:  # TODO: remove verify false in production
             try:
                 response = await client.get(
                     self.USERINFO_URL,

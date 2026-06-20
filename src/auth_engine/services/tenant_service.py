@@ -6,13 +6,20 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from auth_engine.core.config import settings
-from auth_engine.models import RoleORM, TenantORM, UserORM, UserRoleORM
+from auth_engine.models import TenantORM, UserORM, UserRoleORM
 from auth_engine.models.tenant import TenantType
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.permission_service import PermissionService
+from auth_engine.services.role_service import RoleService
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_tenant_type(value: str | TenantType) -> TenantType:
+    if isinstance(value, TenantType):
+        return value
+    return TenantType(value)
 
 
 class TenantService:
@@ -25,10 +32,21 @@ class TenantService:
 
         Platforms actions are logged to the platform tenant's own trail.
         """
-        query = select(TenantORM).where(TenantORM.type == TenantType.PLATFORM)
+        query = (
+            select(TenantORM.id)
+            .where(TenantORM.type == TenantType.PLATFORM)
+            .order_by(TenantORM.created_at.asc())
+            .limit(1)
+        )
         result = await self.user_repo.session.execute(query)
-        platform_tenant = result.scalar_one_or_none()
-        return platform_tenant.id if platform_tenant else None
+        return result.scalar_one_or_none()
+
+    async def _another_platform_tenant_exists(self, exclude_id: uuid.UUID | None = None) -> bool:
+        query = select(TenantORM.id).where(TenantORM.type == TenantType.PLATFORM)
+        if exclude_id is not None:
+            query = query.where(TenantORM.id != exclude_id)
+        result = await self.user_repo.session.execute(query.limit(1))
+        return result.scalar_one_or_none() is not None
 
     async def create_tenant(
         self,
@@ -40,16 +58,26 @@ class TenantService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> TenantORM:
+        tenant_type = _coerce_tenant_type(type)
+        if tenant_type == TenantType.PLATFORM:
+            raise ValueError(
+                "Platform tenants cannot be created via the API. "
+                "The system platform tenant is provisioned during bootstrap."
+            )
+
         tenant = TenantORM(
-            name=name, description=description, owner_id=owner_id, created_by=created_by, type=type
+            name=name,
+            description=description,
+            owner_id=owner_id,
+            created_by=created_by,
+            type=tenant_type,
         )
         self.user_repo.session.add(tenant)
         await self.user_repo.session.flush()
 
-        # Automatically assign TENANT_OWNER role to the owner_id
-        role_query = select(RoleORM).where(RoleORM.name == "TENANT_OWNER")
-        role_result = await self.user_repo.session.execute(role_query)
-        owner_role = role_result.scalar_one_or_none()
+        role_service = RoleService(self.user_repo, self.audit_service)
+        await role_service.clone_templates_for_tenant(tenant.id)
+        owner_role = await role_service.get_tenant_owner_role(tenant.id)
 
         if owner_role:
             user_role = UserRoleORM(user_id=owner_id, role_id=owner_role.id, tenant_id=tenant.id)
@@ -130,6 +158,19 @@ class TenantService:
         if not tenant:
             return None
 
+        new_type = kwargs.get("type")
+        if new_type is not None:
+            normalized_type = _coerce_tenant_type(new_type)
+            if normalized_type == TenantType.PLATFORM and tenant.type != TenantType.PLATFORM:
+                raise ValueError("Cannot change an organization to platform type.")
+            if tenant.type == TenantType.PLATFORM and normalized_type != TenantType.PLATFORM:
+                raise ValueError("Cannot change the system platform tenant type.")
+            if (
+                normalized_type == TenantType.PLATFORM
+                and await self._another_platform_tenant_exists(exclude_id=tenant.id)
+            ):
+                raise ValueError("A platform tenant already exists.")
+
         for key, value in kwargs.items():
             if value is not None and hasattr(tenant, key):
                 setattr(tenant, key, value)
@@ -180,6 +221,9 @@ class TenantService:
         tenant = await self.get_tenant(tenant_id)
         if not tenant:
             return False
+
+        if tenant.type == TenantType.PLATFORM:
+            raise ValueError("The system platform tenant cannot be deleted.")
 
         await self.user_repo.session.delete(tenant)
         await self.user_repo.session.commit()
@@ -267,6 +311,7 @@ class TenantService:
         auth_service: Any,
         role_service: Any,
         email_service_resolver: Any,
+        role_id: uuid.UUID | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> dict[str, str]:
@@ -289,6 +334,11 @@ class TenantService:
         # 3. Check if user exists
         existing_user = await self.user_repo.get_by_email(email)
         action_desc = ""
+        assigned_role = role_name
+        if role_id:
+            role = await role_service.get_role_in_tenant(tenant_id, role_id=role_id)
+            if role:
+                assigned_role = role.name
 
         if existing_user:
             # User exists - assign role and send welcome email
@@ -297,8 +347,9 @@ class TenantService:
                 await role_service.assign_role(
                     actor=actor,
                     target_user_id=user.id,
-                    role_name=role_name,
                     tenant_id=tenant_id,
+                    role_name=role_name if not role_id else None,
+                    role_id=role_id,
                 )
             except ValueError as e:
                 raise e
@@ -318,7 +369,7 @@ class TenantService:
                         <h1>Welcome to {tenant.name}</h1>
                         <p>Hello {user.first_name or 'User'},</p>
                         <p>You've been added to <strong>{tenant.name}</strong>
-                        with the role: <strong>{role_name}</strong></p>
+                        with the role: <strong>{assigned_role}</strong></p>
                         <p>Log in to get started:</p>
                         <p><a href="{dashboard_url}">Open Dashboard</a></p>
                     </body>
@@ -328,7 +379,7 @@ class TenantService:
             except Exception as e:
                 logger.error(f"Failed to send invitation email to {email}: {e}")
 
-            action_desc = f"added to {tenant.name} with role {role_name}"
+            action_desc = f"added to {tenant.name} with role {assigned_role}"
 
         else:
             # User doesn't exist - register them, assign role, send verification + invitation
@@ -344,7 +395,7 @@ class TenantService:
             )
 
             try:
-                user = await auth_service.register_user(user_create)
+                user = await auth_service.register_user(user_create, tenant_id=tenant_id)
             except ValueError as e:
                 raise e
 
@@ -353,8 +404,9 @@ class TenantService:
                 await role_service.assign_role(
                     actor=actor,
                     target_user_id=user.id,
-                    role_name=role_name,
                     tenant_id=tenant_id,
+                    role_name=role_name if not role_id else None,
+                    role_id=role_id,
                 )
             except ValueError as e:
                 raise e
@@ -368,7 +420,7 @@ class TenantService:
                     <body>
                         <h1>Invitation to {tenant.name}</h1>
                         <p>You've been invited to join <strong>{tenant.name}</strong>!</p>
-                        <p>Role: <strong>{role_name}</strong></p>
+                        <p>Role: <strong>{assigned_role}</strong></p>
                         <p>To get started, please complete your registration by
                         verifying your email address.</p>
                         <p>Check your inbox for a verification email with further
@@ -380,7 +432,7 @@ class TenantService:
             except Exception as e:
                 logger.error(f"Failed to send invitation email to {email}: {e}")
 
-            action_desc = f"invited to {tenant.name} (account created) with role {role_name}"
+            action_desc = f"invited to {tenant.name} (account created) with role {assigned_role}"
 
         # 4. Audit log
         if self.audit_service:
@@ -393,7 +445,8 @@ class TenantService:
                 tenant_id=str(tenant_id),
                 metadata={
                     "email": email,
-                    "role_name": role_name,
+                    "role_name": assigned_role,
+                    "role_id": str(role_id) if role_id else None,
                     "user_status": "existing" if existing_user else "newly_registered",
                 },
                 ip_address=ip_address,

@@ -122,8 +122,7 @@ class MagicLinkService:
         """
 
         try:
-            target_tenant = tenant_id if tenant_id else "default"
-            email_svc = await self.email_resolver.resolve(target_tenant)
+            email_svc = await self.email_resolver.resolve(tenant_id)
             await email_svc.send_email(
                 [email],
                 "Your Magic Sign-In Link",

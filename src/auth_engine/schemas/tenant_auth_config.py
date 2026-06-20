@@ -5,27 +5,26 @@ Pydantic schemas for Tenant Auth Configuration endpoints.
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # ── Default values ────────────────────────────────────────────────────────────
 
 DEFAULT_ALLOWED_METHODS = [
     "email_password",
     "magic_link",
-    "google",
-    "github",
-    "microsoft",
-    "authengine",
+    "social_provider",
+    "passkey",
 ]
 
 VALID_AUTH_METHODS = {
     "email_password",
     "magic_link",
-    "google",
-    "github",
-    "microsoft",
-    "authengine",
+    "social_provider",
+    "passkey",
 }
+
+# Legacy values still accepted on write; normalized before persistence.
+LEGACY_SOCIAL_METHODS = frozenset({"google", "github", "microsoft", "authengine"})
 
 DEFAULT_PASSWORD_POLICY = {
     "min_length": 8,
@@ -34,6 +33,17 @@ DEFAULT_PASSWORD_POLICY = {
     "require_digit": True,
     "require_special": True,
 }
+
+
+def resolve_password_policy(policy: dict | None) -> dict:
+    """Merge tenant policy over code defaults."""
+    resolved = DEFAULT_PASSWORD_POLICY.copy()
+    if not policy:
+        return resolved
+    for key in resolved:
+        if key in policy and policy[key] is not None:
+            resolved[key] = policy[key]
+    return resolved
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -57,6 +67,13 @@ class TenantAuthConfigUpdate(BaseModel):
     allowed_domains: list[str] | None = None
     oidc_client_id: uuid.UUID | None = None
 
+    @field_validator("oidc_client_id", mode="before")
+    @classmethod
+    def empty_oidc_client_id_to_none(cls, value: object) -> object:
+        if value == "" or value is None:
+            return None
+        return value
+
 
 class TenantAuthConfigResponse(BaseModel):
     """Response for GET/PUT /tenants/{tenant_id}/auth-config"""
@@ -73,3 +90,10 @@ class TenantAuthConfigResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PublicTenantAuthConfigResponse(BaseModel):
+    """Public login page — enabled auth methods only."""
+
+    tenant_id: uuid.UUID
+    allowed_methods: list[str]

@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -17,8 +18,14 @@ from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.oauth import (
     OAuthAccountResponse,
     OAuthLoginResponse,
+    PublicOAuthProviderResponse,
 )
 from auth_engine.services.oauth_service import OAuthService
+from auth_engine.services.social_provider_service import list_active_oauth_providers
+from auth_engine.services.tenant_auth_config_service import (
+    get_or_create_auth_config,
+    is_method_allowed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +41,27 @@ def _get_oauth_service(
         oauth_repo=OAuthAccountRepository(db),
         redis_conn=redis_conn,
     )
+
+
+@router.get("/providers", response_model=list[PublicOAuthProviderResponse])
+async def list_oauth_providers(
+    tenant_id: uuid.UUID | None = Query(
+        default=None,
+        description="Tenant whose active social providers to list (defaults to platform tenant)",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> list[PublicOAuthProviderResponse]:
+    """Public login endpoint — returns active providers for the given tenant_id."""
+    if tenant_id is not None:
+        auth_config = await get_or_create_auth_config(db, tenant_id)
+        if not is_method_allowed(auth_config.allowed_methods, "social_provider"):
+            return []
+
+    providers = await list_active_oauth_providers(db, tenant_id=tenant_id)
+    return [
+        PublicOAuthProviderResponse(provider=p, tenant_id=tid)  # type: ignore[arg-type]
+        for p, tid in providers
+    ]
 
 
 @router.get("/{provider}/login")
@@ -58,6 +86,22 @@ async def oauth_login(
                 f"Choose from: {', '.join(SUPPORTED_PROVIDERS)}"
             ),
         )
+
+    resolved_tenant_id: uuid.UUID | None = None
+    if tenant_id:
+        try:
+            resolved_tenant_id = uuid.UUID(tenant_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid tenant_id",
+            ) from exc
+        auth_config = await get_or_create_auth_config(db, resolved_tenant_id)
+        if not is_method_allowed(auth_config.allowed_methods, "social_provider"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Social login is not enabled for this tenant.",
+            )
 
     try:
         strategy = await get_oauth_strategy(provider, db=db, tenant_id=tenant_id)

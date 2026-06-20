@@ -1,7 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.deps import get_audit_service, get_db
@@ -29,18 +28,26 @@ def serialize_role(r: RoleORM) -> RoleResponse:
 @router.get("/roles")
 async def list_roles(
     scope: RoleScope | None = None,
+    templates: bool | None = Query(None, description="Filter tenant role templates"),
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(check_platform_permission("platform.roles.assign")),
 ) -> list[RoleResponse]:
     """
-    List roles applicable to the platform management context.
+    List platform roles and/or tenant role templates (not per-organization instances).
     """
-    query = select(RoleORM)
-    if scope:
-        query = query.where(RoleORM.scope == scope)
+    user_repo = UserRepository(db)
+    role_service = RoleService(user_repo)
 
-    result = await db.execute(query)
-    roles = result.scalars().all()
+    if templates is True:
+        roles = await role_service.list_role_templates()
+    elif scope == RoleScope.PLATFORM:
+        roles = await role_service.list_platform_roles()
+    elif scope == RoleScope.TENANT:
+        roles = await role_service.list_role_templates()
+    else:
+        platform_roles = await role_service.list_platform_roles()
+        templates_list = await role_service.list_role_templates()
+        roles = platform_roles + templates_list
 
     return [serialize_role(role) for role in roles]
 
@@ -50,7 +57,9 @@ async def list_permissions(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(check_platform_permission("platform.roles.assign")),
 ) -> list[dict]:
-    """Retrieve all the valid roles/permissions available to build roles upon."""
+    """Retrieve all permissions available to build roles upon."""
+    from sqlalchemy import select
+
     from auth_engine.models import PermissionORM
 
     res = await db.execute(select(PermissionORM))
@@ -119,8 +128,10 @@ async def assign_role_to_user(
     current_user: UserORM = Depends(check_platform_permission("platform.roles.assign")),
 ) -> dict:
     """
-    Assign a platform-level role (SUPER_ADMIN or PLATFORM_ADMIN) to a user.
+    Assign a platform-level role to a user.
     """
+    from sqlalchemy import select
+
     platform_query = select(TenantORM.id).where(TenantORM.type == TenantType.PLATFORM).limit(1)
     platform_result = await db.execute(platform_query)
     platform_id = platform_result.scalar()
@@ -135,8 +146,9 @@ async def assign_role_to_user(
         await role_service.assign_role(
             actor=current_user,
             target_user_id=user_id,
-            role_name=assignment.role_name,
             tenant_id=platform_id,
+            role_name=assignment.role_name,
+            role_id=assignment.role_id,
         )
         return {"status": "success"}
     except ValueError as e:
@@ -154,6 +166,8 @@ async def remove_role_from_user(
     """
     Remove a platform-level role from a user.
     """
+    from sqlalchemy import select
+
     platform_query = select(TenantORM.id).where(TenantORM.type == TenantType.PLATFORM).limit(1)
     platform_result = await db.execute(platform_query)
     platform_id = platform_result.scalar()
@@ -166,7 +180,10 @@ async def remove_role_from_user(
 
     try:
         success = await role_service.remove_role(
-            actor=current_user, target_user_id=user_id, role_name=role_name, tenant_id=platform_id
+            actor=current_user,
+            target_user_id=user_id,
+            tenant_id=platform_id,
+            role_name=role_name,
         )
         if not success:
             raise HTTPException(status_code=404, detail="Role assignment not found")

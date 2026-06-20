@@ -40,18 +40,23 @@ def migrate() -> None:
     """
     Run Alembic migrations
     """
-    # Use the alembic executable from the virtual environment
+    project_root = get_project_root()
     alembic_path = str(Path(sys.executable).parent / "alembic")
-    subprocess.run([alembic_path, "upgrade", "head"])
+    subprocess.run([alembic_path, "upgrade", "head"], cwd=project_root, check=True)
 
 
 @app.command()
 def makemigration(message: str) -> None:
     """
-    Create a new migration
+    Create a new migration (run from auth-engine root where alembic.ini lives)
     """
+    project_root = get_project_root()
     alembic_path = str(Path(sys.executable).parent / "alembic")
-    subprocess.run([alembic_path, "revision", "--autogenerate", "-m", message])
+    subprocess.run(
+        [alembic_path, "revision", "--autogenerate", "-m", message],
+        cwd=project_root,
+        check=True,
+    )
 
 
 if __name__ == "__main__":

@@ -20,9 +20,12 @@ class TenantEmailConfigORM(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("tenants.id"), unique=True, nullable=False
+        UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True
     )
-    provider: Mapped[EmailProviderType] = mapped_column(SQLEnum(EmailProviderType), nullable=False)
+    provider: Mapped[EmailProviderType] = mapped_column(
+        SQLEnum(EmailProviderType, name="emailprovidertype"),
+        nullable=False,
+    )
     encrypted_credentials: Mapped[str] = mapped_column(String, nullable=False)
     from_email: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

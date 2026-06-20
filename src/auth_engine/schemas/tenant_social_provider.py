@@ -9,6 +9,8 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from auth_engine.auth_strategies.oauth.authengine import normalize_authengine_base_url
+
 
 class SocialProviderName(str, Enum):
     GOOGLE = "google"
@@ -31,12 +33,14 @@ class TenantSocialProviderCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_authengine_base_url(self) -> "TenantSocialProviderCreate":
-        if self.provider == SocialProviderName.AUTHENGINE and not self.oidc_discovery_url:
-            raise ValueError(
-                "oidc_discovery_url is required for the 'authengine' provider. "
-                "Set it to the base URL of the remote AuthEngine instance, "
-                "e.g. https://api.authengine.org"
-            )
+        if self.provider == SocialProviderName.AUTHENGINE:
+            if not self.oidc_discovery_url:
+                raise ValueError(
+                    "oidc_discovery_url is required for the 'authengine' provider. "
+                    "Set it to the base URL of the remote AuthEngine instance, "
+                    "e.g. https://api.authengine.org"
+                )
+            self.oidc_discovery_url = normalize_authengine_base_url(self.oidc_discovery_url)
         return self
 
 
@@ -48,6 +52,12 @@ class TenantSocialProviderUpdate(BaseModel):
     redirect_uri: str | None = None
     oidc_discovery_url: str | None = None
     is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def normalize_authengine_discovery_url(self) -> "TenantSocialProviderUpdate":
+        if self.oidc_discovery_url:
+            self.oidc_discovery_url = normalize_authengine_base_url(self.oidc_discovery_url)
+        return self
 
 
 class TenantSocialProviderToggle(BaseModel):

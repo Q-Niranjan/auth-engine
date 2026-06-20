@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgot Password — {{ app_name }}</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .logo-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            border-radius: 14px;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.4);
+        }
+        h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        label {
+            display: block;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: #94a3b8;
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.02em;
+        }
+        .input-wrap {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        input[type="email"] {
+            width: 100%;
+            padding: 0.7rem 0.875rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+        }
+        button[type="submit"] {
+            width: 100%;
+            padding: 0.8rem;
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            margin-top: 0.5rem;
+            letter-spacing: 0.01em;
+        }
+        button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.99); }
+        .error {
+            background: rgba(185, 28, 28, 0.15);
+            border: 1px solid #b91c1c;
+            color: #fca5a5;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .error::before { content: "⚠"; font-size: 1rem; }
+        .success {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid #16a34a;
+            color: #86efac;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .divider {
+            border: none;
+            border-top: 1px solid #334155;
+            margin: 1.5rem 0;
+        }
+        .footer {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #475569;
+            line-height: 1.6;
+        }
+        .footer a { color: #0ea5e9; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        .login-prompt {
+            text-align: center;
+            margin-top: 1.25rem;
+            font-size: 0.8125rem;
+            color: #94a3b8;
+        }
+        .login-prompt a {
+            color: #0ea5e9;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .login-prompt a:hover {
+            text-decoration: underline;
+            color: #38bdf8;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">
+            <img src="/static/squarelogo.png" alt="Logo" width="64" height="64" style="border-radius: 14px; margin-bottom: 1rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); background-color: white; padding: 4px;">
+            <h1>Reset your password</h1>
+            <p class="subtitle">Enter your email address and we'll send you a link to reset your password.</p>
+        </div>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+        
+        {% if success_message %}
+        <div class="success">{{ success_message }}</div>
+        {% endif %}
+
+        <form method="POST" action="/forgot-password">
+            <input type="hidden" name="client_id" value="{{ client_id }}">
+            <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+
+            <label for="email">Email address</label>
+            <div class="input-wrap">
+                <input type="email" id="email" name="email" placeholder="you@example.com"
+                       required autocomplete="email" autofocus>
+            </div>
+
+            <button type="submit">Send Reset Link</button>
+
+            <div class="login-prompt">
+                <a href="/login">← Back to sign in</a>
+            </div>
+        </form>
+
+        <hr class="divider">
+        <div class="footer">
+            Securely authenticated by <a href="#">{{ app_name }}</a><br>
+            Identity &amp; Access Management
+        </div>
+    </div>
+</body>
+</html>

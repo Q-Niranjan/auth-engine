@@ -10,6 +10,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from auth_engine.core import settings
+from auth_engine.schemas.tenant_auth_config import resolve_password_policy
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -24,20 +25,26 @@ class SecurityUtils:
         return pwd_context.verify(plain_password, hashed_password)
 
     @staticmethod
-    def validate_password_strength(password: str) -> tuple[bool, str]:
-        if len(password) < settings.PASSWORD_MIN_LENGTH:
-            return False, f"Password must be at least {settings.PASSWORD_MIN_LENGTH} characters"
+    def validate_password_strength(
+        password: str,
+        policy: dict | None = None,
+    ) -> tuple[bool, str]:
+        rules = resolve_password_policy(policy)
+        min_length = int(rules["min_length"])
 
-        if settings.PASSWORD_REQUIRE_UPPERCASE and not re.search(r"[A-Z]", password):
+        if len(password) < min_length:
+            return False, f"Password must be at least {min_length} characters"
+
+        if rules["require_uppercase"] and not re.search(r"[A-Z]", password):
             return False, "Password must contain at least one uppercase letter"
 
-        if settings.PASSWORD_REQUIRE_LOWERCASE and not re.search(r"[a-z]", password):
+        if rules["require_lowercase"] and not re.search(r"[a-z]", password):
             return False, "Password must contain at least one lowercase letter"
 
-        if settings.PASSWORD_REQUIRE_DIGIT and not re.search(r"\d", password):
+        if rules["require_digit"] and not re.search(r"\d", password):
             return False, "Password must contain at least one digit"
 
-        if settings.PASSWORD_REQUIRE_SPECIAL and not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        if rules["require_special"] and not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
             return False, "Password must contain at least one special character"
 
         return True, ""

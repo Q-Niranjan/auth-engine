@@ -1,7 +1,18 @@
-from . import auth, contact, introspect, magic_link, mfa, oauth, select_tenant, webauthn
+from . import (
+    auth,
+    auth_config,
+    contact,
+    introspect,
+    magic_link,
+    mfa,
+    oauth,
+    select_tenant,
+    webauthn,
+)
 
 __all__ = [
     "auth",
+    "auth_config",
     "contact",
     "oauth",
     "introspect",

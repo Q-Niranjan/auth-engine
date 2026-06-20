@@ -25,6 +25,12 @@ class RoleResponse(BaseModel):
     description: str | None = None
     scope: RoleScope | None = None
     level: int
+    tenant_id: uuid.UUID | None = None
+    is_template: bool = False
+    template_role_id: uuid.UUID | None = None
+    is_protected_tenant_role: bool = False
+    is_system_role: bool = False
+    is_name_locked: bool = False
     created_at: datetime
     permissions: list[PermissionResponse] = []
     permission_ids: list[uuid.UUID] = []
@@ -35,7 +41,6 @@ class RoleResponse(BaseModel):
     @classmethod
     def transform_permissions(cls, v: Any) -> Any:
         if isinstance(v, list):
-            # Extract PermissionORM from RolePermissionORM if present
             return [getattr(p, "permission", p) for p in v]
         return v
 
@@ -54,7 +59,19 @@ class UserRoleResponse(BaseModel):
 
 
 class RoleAssignment(BaseModel):
-    role_name: str
+    role_name: str | None = None
+    role_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def require_role_ref(self) -> "RoleAssignment":
+        if not self.role_name and not self.role_id:
+            raise ValueError("Either role_name or role_id is required")
+        return self
+
+
+class TenantRoleAssignment(BaseModel):
+    tenant_id: uuid.UUID
+    role_id: uuid.UUID
 
 
 class RoleCreateRequest(BaseModel):
@@ -63,6 +80,19 @@ class RoleCreateRequest(BaseModel):
     scope: RoleScope = RoleScope.TENANT
     level: int = 0
     permissions: list[uuid.UUID] = []
+    is_template: bool | None = None
+
+
+class TenantRoleCreateRequest(BaseModel):
+    name: str
+    description: str | None = None
+    level: int = 0
+    permissions: list[uuid.UUID] = []
+
+
+class CloneFromTemplateRequest(BaseModel):
+    template_role_id: uuid.UUID
+    name: str | None = None
 
 
 class RoleUpdateRequest(BaseModel):

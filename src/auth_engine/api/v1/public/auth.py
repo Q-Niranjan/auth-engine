@@ -3,16 +3,15 @@ import uuid
 import redis.asyncio as redis
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.auth_deps import get_current_active_user
 from auth_engine.api.dependencies.deps import get_audit_service, get_db
 from auth_engine.core.config import settings
 from auth_engine.core.redis import get_redis
-from auth_engine.models import TenantAuthConfigORM, UserORM
+from auth_engine.models import UserORM
 from auth_engine.repositories.user_repo import UserRepository
-from auth_engine.schemas.mfa import MFAChallengeResponse
+from auth_engine.schemas.mfa import MFAChallengeResponse, MFAEnrollmentRequiredResponse
 from auth_engine.schemas.user import (
     EmailVerificationConfirm,
     PasswordResetConfirm,
@@ -29,6 +28,10 @@ from auth_engine.schemas.user import (
 from auth_engine.services.audit_service import AuditService
 from auth_engine.services.auth_service import AuthService
 from auth_engine.services.session_service import SessionService
+from auth_engine.services.tenant_auth_config_service import (
+    get_or_create_auth_config,
+    is_method_allowed,
+)
 from auth_engine.services.totp_service import TOTPService
 
 router = APIRouter()
@@ -55,7 +58,7 @@ async def register(
 
 @router.post(
     "/login",
-    response_model=UserLoginResponse | MFAChallengeResponse,
+    response_model=UserLoginResponse | MFAChallengeResponse | MFAEnrollmentRequiredResponse,
 )
 async def login(
     request: Request,
@@ -64,7 +67,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
     redis_conn: redis.Redis = Depends(get_redis),
     audit_service: AuditService = Depends(get_audit_service),
-) -> UserLoginResponse | MFAChallengeResponse | JSONResponse:
+) -> UserLoginResponse | MFAChallengeResponse | MFAEnrollmentRequiredResponse | JSONResponse:
     user_repo = UserRepository(db)
     auth_service = AuthService(user_repo)
     session_service = SessionService(redis_conn)
@@ -75,37 +78,52 @@ async def login(
         )
 
         # ── Tenant auth config gate ──────────────────────────────────────
-        if login_data.tenant_id:
-            config_q = sa_select(TenantAuthConfigORM).where(
-                TenantAuthConfigORM.tenant_id == login_data.tenant_id
-            )
-            config_result = await db.execute(config_q)
-            auth_config = config_result.scalar_one_or_none()
+        tenant_id = login_data.tenant_id
+        if tenant_id:
+            auth_config = await get_or_create_auth_config(db, tenant_id)
 
-            if auth_config:
-                # Check method is allowed
-                if "email_password" not in (auth_config.allowed_methods or []):
+            if not is_method_allowed(auth_config.allowed_methods, "email_password"):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Email/password login is not enabled for this tenant.",
+                )
+
+            if auth_config.allowed_domains:
+                user_domain = str(user.email).split("@")[-1].lower()
+                allowed = [d.lower() for d in auth_config.allowed_domains]
+                if user_domain not in allowed:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Email/password login is not enabled for this tenant.",
+                        detail=f"Email domain '{user_domain}' is not allowed for this tenant.",
                     )
 
-                # Check email domain restriction
-                if auth_config.allowed_domains:
-                    user_domain = str(user.email).split("@")[-1].lower()
-                    allowed = [d.lower() for d in auth_config.allowed_domains]
-                    if user_domain not in allowed:
-                        raise HTTPException(
-                            status_code=status.HTTP_403_FORBIDDEN,
-                            detail=f"Email domain '{user_domain}' is not allowed for this tenant.",
-                        )
+            if auth_config.mfa_required and not user.mfa_enabled:
+                totp_svc = TOTPService(db, redis_conn)
+                mfa_enrollment_token = await totp_svc.store_mfa_enrollment_pending(
+                    user_id=str(user.id),
+                    session_context={
+                        "ip_address": request.client.host if request.client else "unknown",
+                        "user_agent": request.headers.get("user-agent", "unknown"),
+                    },
+                )
 
-                # Check MFA enforcement
-                if auth_config.mfa_required and not user.mfa_enabled:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="This organization requires MFA. " "Please enroll at /me/mfa/enroll",
-                    )
+                background_tasks.add_task(
+                    audit_service.log,
+                    action="MFA_ENROLLMENT_REQUIRED",
+                    resource="Auth",
+                    resource_id=str(user.id),
+                    actor_id=user.id,
+                    metadata={"email": user.email},
+                    ip_address=request.client.host if request.client else None,
+                    user_agent=request.headers.get("user-agent"),
+                )
+
+                return JSONResponse(
+                    status_code=status.HTTP_202_ACCEPTED,
+                    content=MFAEnrollmentRequiredResponse(
+                        mfa_enrollment_token=mfa_enrollment_token
+                    ).model_dump(),
+                )
         # ── End tenant gate ──────────────────────────────────────────────
 
         if user.mfa_enabled:

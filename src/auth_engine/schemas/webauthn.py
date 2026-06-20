@@ -5,6 +5,7 @@ Covers registration (attestation) and authentication (assertion) ceremonies,
 as well as user-facing credential management responses.
 """
 
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -43,6 +44,10 @@ class WebAuthnAuthBeginRequest(BaseModel):
     """
 
     email: str | None = Field(default=None, description="User email — omit for resident-key flow")
+    tenant_id: uuid.UUID | None = Field(
+        default=None,
+        description="Tenant context — passkey login must be enabled for this tenant",
+    )
 
 
 class WebAuthnAuthBeginResponse(BaseModel):
@@ -56,6 +61,10 @@ class WebAuthnAuthCompleteRequest(BaseModel):
     """Browser posts the assertion result back after user gesture."""
 
     credential: dict = Field(..., description="PublicKeyCredential JSON from the browser")
+    tenant_id: uuid.UUID | None = Field(
+        default=None,
+        description="Tenant context — passkey login must be enabled for this tenant",
+    )
 
 
 # ── Credential management ─────────────────────────────────────────────────────

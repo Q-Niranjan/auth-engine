@@ -98,6 +98,7 @@ async def invite_user_to_tenant(
             tenant_id=tenant_id,
             email=payload.email,
             role_name=payload.role_name,
+            role_id=payload.role_id,
             actor=current_user,
             auth_service=auth_service,
             role_service=role_service,

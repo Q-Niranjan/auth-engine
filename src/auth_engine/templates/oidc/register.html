@@ -1,19 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign in — {{ app_name }}</title>
+    <title>Sign up — {{ app_name }}</title>
     <style>
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: #0f172a;
@@ -24,7 +16,6 @@
             justify-content: center;
             padding: 1rem;
         }
-
         .card {
             background: #1e293b;
             border: 1px solid #334155;
@@ -34,12 +25,10 @@
             max-width: 400px;
             box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
         }
-
         .logo {
             text-align: center;
             margin-bottom: 2rem;
         }
-
         .logo-icon {
             display: inline-flex;
             align-items: center;
@@ -51,7 +40,6 @@
             margin-bottom: 1rem;
             box-shadow: 0 4px 20px rgba(14, 165, 233, 0.4);
         }
-
         h1 {
             font-size: 1.3rem;
             font-weight: 700;
@@ -59,53 +47,12 @@
             text-align: center;
             margin-bottom: 0.25rem;
         }
-
         .subtitle {
             text-align: center;
             color: #64748b;
             font-size: 0.875rem;
-            margin-bottom: 0.75rem;
+            margin-bottom: 1.5rem;
         }
-
-        .client-badge {
-            text-align: center;
-            margin-bottom: 1.75rem;
-        }
-
-        .client-badge span {
-            display: inline-block;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 20px;
-            padding: 0.3rem 0.9rem;
-            font-size: 0.75rem;
-            color: #94a3b8;
-            font-family: monospace;
-        }
-
-        .client-badge .dot {
-            display: inline-block;
-            width: 6px;
-            height: 6px;
-            background: #22c55e;
-            border-radius: 50%;
-            margin-right: 0.4rem;
-            vertical-align: middle;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.4;
-            }
-        }
-
         label {
             display: block;
             font-size: 0.8125rem;
@@ -114,14 +61,11 @@
             margin-bottom: 0.4rem;
             letter-spacing: 0.02em;
         }
-
         .input-wrap {
             position: relative;
             margin-bottom: 1rem;
         }
-
-        input[type="email"],
-        input[type="password"] {
+        input[type="text"], input[type="email"], input[type="password"] {
             width: 100%;
             padding: 0.7rem 0.875rem;
             background: #0f172a;
@@ -132,12 +76,10 @@
             outline: none;
             transition: border-color 0.2s, box-shadow 0.2s;
         }
-
         input:focus {
             border-color: #0ea5e9;
             box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
         }
-
         button[type="submit"] {
             width: 100%;
             padding: 0.8rem;
@@ -152,15 +94,8 @@
             margin-top: 0.5rem;
             letter-spacing: 0.01em;
         }
-
-        button:hover {
-            opacity: 0.9;
-        }
-
-        button:active {
-            transform: scale(0.99);
-        }
-
+        button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.99); }
         .error {
             background: rgba(185, 28, 28, 0.15);
             border: 1px solid #b91c1c;
@@ -173,119 +108,52 @@
             align-items: center;
             gap: 0.5rem;
         }
-
-        .error::before {
-            content: "⚠";
-            font-size: 1rem;
-        }
-
+        .error::before { content: "⚠"; font-size: 1rem; }
         .divider {
             border: none;
             border-top: 1px solid #334155;
             margin: 1.5rem 0;
         }
-
         .footer {
             text-align: center;
             font-size: 0.75rem;
             color: #475569;
             line-height: 1.6;
         }
-
-        .footer a {
-            color: #0ea5e9;
-            text-decoration: none;
-        }
-
-        .footer a:hover {
-            text-decoration: underline;
-        }
-
-        .scope-pills {
-            display: flex;
-            gap: 0.4rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-bottom: 1.5rem;
-        }
-
-        .pill {
-            background: rgba(14, 165, 233, 0.1);
-            border: 1px solid rgba(14, 165, 233, 0.3);
-            color: #38bdf8;
-            border-radius: 20px;
-            padding: 0.2rem 0.6rem;
-            font-size: 0.7rem;
-            font-weight: 500;
-        }
-
-        .password-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.4rem;
-        }
-
-        .password-header label {
-            margin-bottom: 0;
-        }
-
-        .text-link {
-            font-size: 0.75rem;
-            color: #0ea5e9;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .text-link:hover {
-            text-decoration: underline;
-            color: #38bdf8;
-        }
-
-        .register-prompt {
+        .footer a { color: #0ea5e9; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        .login-prompt {
             text-align: center;
             margin-top: 1.25rem;
             font-size: 0.8125rem;
             color: #94a3b8;
         }
-
-        .register-prompt a {
+        .login-prompt a {
             color: #0ea5e9;
             text-decoration: none;
             font-weight: 500;
             transition: color 0.2s;
         }
-
-        .register-prompt a:hover {
+        .login-prompt a:hover {
             text-decoration: underline;
             color: #38bdf8;
         }
     </style>
 </head>
-
 <body>
     <div class="card">
         <div class="logo">
-            <img src="/static/squarelogo.png" alt="Logo" width="64" height="64"
-                style="border-radius: 14px; margin-bottom: 1rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); background-color: white; padding: 4px;">
-            <h1>Sign in to {{ client_name or app_name }}</h1>
-            <p class="subtitle">via {{ app_name }}</p>
+            <img src="/static/squarelogo.png" alt="Logo" width="64" height="64" style="border-radius: 14px; margin-bottom: 1rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); background-color: white; padding: 4px;">
+            <h1>Create an account</h1>
+            <p class="subtitle">Join {{ app_name }} today</p>
         </div>
-        {% if scopes %}
-        <div class="scope-pills">
-            {% for scope in scopes %}
-            <span class="pill">{{ scope }}</span>
-            {% endfor %}
-        </div>
-        {% endif %}
 
         {% if error %}
         <div class="error">{{ error }}</div>
         {% endif %}
 
-        <form method="POST" action="{{ authorize_url }}">
+        <form method="POST" action="/register">
             <input type="hidden" name="client_id" value="{{ client_id }}">
-            <input type="hidden" name="client_name" value="{{ client_name }}">
             <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
             <input type="hidden" name="scope" value="{{ scope }}">
             <input type="hidden" name="state" value="{{ state }}">
@@ -293,25 +161,25 @@
             <input type="hidden" name="code_challenge" value="{{ code_challenge }}">
             <input type="hidden" name="code_challenge_method" value="{{ code_challenge_method }}">
 
+            <label for="name">Full Name</label>
+            <div class="input-wrap">
+                <input type="text" id="name" name="name" placeholder="John Doe" required autofocus>
+            </div>
+
             <label for="email">Email address</label>
             <div class="input-wrap">
-                <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="email"
-                    autofocus>
+                <input type="email" id="email" name="email" placeholder="you@example.com" required autocomplete="email">
             </div>
 
-            <div class="password-header">
-                <label for="password">Password</label>
-                <a href="/forgot-password" class="text-link">Forgot password?</a>
-            </div>
+            <label for="password">Password</label>
             <div class="input-wrap">
-                <input type="password" id="password" name="password" placeholder="••••••••" required
-                    autocomplete="current-password">
+                <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="new-password">
             </div>
 
-            <button type="submit">Continue →</button>
+            <button type="submit">Sign Up</button>
 
-            <div class="register-prompt">
-                Don't have an account? <a href="/register">Sign up</a>
+            <div class="login-prompt">
+                Already have an account? <a href="/login">Sign in</a>
             </div>
         </form>
 
@@ -322,5 +190,4 @@
         </div>
     </div>
 </body>
-
 </html>

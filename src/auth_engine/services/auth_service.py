@@ -13,6 +13,8 @@ from auth_engine.repositories.email_config_repo import TenantEmailConfigReposito
 from auth_engine.repositories.sms_config_repo import TenantSMSConfigRepository
 from auth_engine.repositories.user_repo import UserRepository
 from auth_engine.schemas.user import UserCreate, UserLogin, UserStatus
+from auth_engine.services.social_provider_service import get_canonical_platform_tenant_id
+from auth_engine.services.tenant_auth_config_service import get_effective_password_policy
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,21 @@ class AuthService:
         template = self.jinja_env.get_template(template_name)
         return template.render(**kwargs)
 
-    async def register_user(self, user_in: UserCreate) -> UserORM:
+    async def _validate_new_password(
+        self,
+        password: str,
+        tenant_id: uuid.UUID | None = None,
+    ) -> None:
+        policy = await get_effective_password_policy(self.user_repo.session, tenant_id)
+        is_valid, error_msg = security.validate_password_strength(password, policy)
+        if not is_valid:
+            raise ValueError(error_msg)
+
+    async def register_user(
+        self,
+        user_in: UserCreate,
+        tenant_id: uuid.UUID | None = None,
+    ) -> UserORM:
         existing_user = await self.user_repo.get_by_email(user_in.email)
         if existing_user:
             raise ValueError("User with this email already exists")
@@ -49,6 +65,8 @@ class AuthService:
             existing_user = await self.user_repo.get_by_phone_number(user_in.phone_number)
             if existing_user:
                 raise ValueError("User with this phone number already exists")
+
+        await self._validate_new_password(user_in.password, tenant_id)
 
         password_hash = security.hash_password(user_in.password)
 
@@ -72,6 +90,20 @@ class AuthService:
         await self.initiate_verifications(user)
 
         return user
+
+    async def _resolve_delivery_tenant_id(
+        self,
+        tenant_id: uuid.UUID | str | None,
+    ) -> uuid.UUID:
+        if tenant_id:
+            if isinstance(tenant_id, uuid.UUID):
+                return tenant_id
+            return uuid.UUID(str(tenant_id))
+
+        platform_id = await get_canonical_platform_tenant_id(self.user_repo.session)
+        if not platform_id:
+            raise ValueError("No platform tenant configured for delivery.")
+        return platform_id
 
     async def initiate_verifications(self, user: UserORM, tenant_id: str | None = None) -> None:
         if user.email:
@@ -163,19 +195,23 @@ class AuthService:
                 Please sign in with {provider} or set a password."
             )
 
+        extra_data: dict[str, Any] = {}
+        if tenant_id:
+            extra_data["tenant_id"] = str(tenant_id)
+
         reset_token = self.generate_action_token(
-            user, token_type="password_reset", expires_delta=timedelta(hours=1)
+            user,
+            token_type="password_reset",
+            expires_delta=timedelta(hours=1),
+            extra_data=extra_data or None,
         )
-        target_tenant = tenant_id if tenant_id else "default"
+        target_tenant = await self._resolve_delivery_tenant_id(tenant_id)
 
         try:
             email_service = await self.email_resolver.resolve(target_tenant)
 
-            dashboard_url = str(
-                getattr(settings, "DASHBOARD_URL", None)
-                or getattr(settings, "APP_URL", "http://localhost:3000")
-            )
-            reset_link = f"{dashboard_url.rstrip('/')}/reset-password?token={reset_token}"
+            app_url = str(getattr(settings, "APP_URL", "http://localhost:8000"))
+            reset_link = f"{app_url.rstrip('/')}/reset-password?token={reset_token}"
 
             subject = "Password Reset Request"
             html_content = self._render_template(
@@ -251,12 +287,21 @@ class AuthService:
         if not user:
             raise ValueError("User not found")
 
+        tenant_id_raw = payload.get("tenant_id")
+        tenant_id = uuid.UUID(tenant_id_raw) if tenant_id_raw else None
+        await self._validate_new_password(new_password, tenant_id)
+
         user.password_hash = security.hash_password(new_password)
         user.password_changed_at = datetime.utcnow()
         await self.user_repo.session.commit()
         logger.info(f"Password reset successful for user {user.email}")
 
-    async def set_password_for_oauth_user(self, user: UserORM, new_password: str) -> None:
+    async def set_password_for_oauth_user(
+        self,
+        user: UserORM,
+        new_password: str,
+        tenant_id: uuid.UUID | None = None,
+    ) -> None:
         """
         Allow an authenticated OAuth user (with no password) to set a password.
         """
@@ -264,6 +309,8 @@ class AuthService:
             raise ValueError(
                 "Password already exists for this account. Use update-password instead."
             )
+
+        await self._validate_new_password(new_password, tenant_id)
 
         user.password_hash = security.hash_password(new_password)
         user.password_changed_at = datetime.utcnow()
@@ -278,7 +325,11 @@ class AuthService:
         logger.info(f"Password set for OAuth user {user.id}")
 
     async def change_password(
-        self, user: UserORM, current_password: str, new_password: str
+        self,
+        user: UserORM,
+        current_password: str,
+        new_password: str,
+        tenant_id: uuid.UUID | None = None,
     ) -> None:
         """
         Allow an authenticated user to change their existing password.
@@ -288,6 +339,8 @@ class AuthService:
 
         if not security.verify_password(current_password, str(user.password_hash)):
             raise ValueError("Invalid current password")
+
+        await self._validate_new_password(new_password, tenant_id)
 
         user.password_hash = security.hash_password(new_password)
         user.password_changed_at = datetime.utcnow()
@@ -362,15 +415,12 @@ class AuthService:
         """
         token = self.generate_action_token(user, token_type="email_verification")
 
-        target_tenant = tenant_id if tenant_id else "default"
+        target_tenant = await self._resolve_delivery_tenant_id(tenant_id)
 
         try:
             email_service = await self.email_resolver.resolve(target_tenant)
-            dashboard_url = str(
-                getattr(settings, "DASHBOARD_URL", None)
-                or getattr(settings, "APP_URL", "http://localhost:3000")
-            )
-            verify_link = f"{dashboard_url.rstrip('/')}/verify-email?token={token}"
+            app_url = str(getattr(settings, "APP_URL", "http://localhost:8000"))
+            verify_link = f"{app_url.rstrip('/')}/verify-email?token={token}"
 
             subject = "Verify Your Email"
             html_content = self._render_template(
@@ -400,7 +450,7 @@ class AuthService:
         await redis.setex(otp_key, 600, hashed_otp)
         await redis.setex(cooldown_key, 60, "1")
 
-        target_tenant = tenant_id if tenant_id else "default"
+        target_tenant = await self._resolve_delivery_tenant_id(tenant_id)
 
         try:
             sms_service = await self.sms_resolver.resolve(target_tenant)

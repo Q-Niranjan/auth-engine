@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Email — {{ app_name }}</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+        .logo img {
+            border-radius: 14px;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            background-color: white;
+            padding: 4px;
+        }
+        h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #64748b;
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
+        .success-box {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid #16a34a;
+            color: #86efac;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .error-box {
+            background: rgba(185, 28, 28, 0.15);
+            border: 1px solid #b91c1c;
+            color: #fca5a5;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .btn {
+            display: inline-block;
+            width: 100%;
+            padding: 0.8rem;
+            background: linear-gradient(135deg, #0ea5e9, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">
+            <img src="/static/squarelogo.png" alt="Logo" width="64" height="64">
+            {% if success %}
+            <h1>Email Verified</h1>
+            <p class="subtitle">Your email address has been successfully verified.</p>
+            <div class="success-box">You're all set!</div>
+            {% else %}
+            <h1>Verification Failed</h1>
+            <p class="subtitle">We couldn't verify your email address.</p>
+            <div class="error-box">{{ error }}</div>
+            {% endif %}
+        </div>
+
+        <a href="/login" class="btn">Continue to Sign In</a>
+    </div>
+</body>
+</html>

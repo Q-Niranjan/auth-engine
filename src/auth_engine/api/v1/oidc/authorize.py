@@ -27,12 +27,19 @@ from urllib.parse import urlencode
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.auth_deps import get_current_user_optional
+from auth_engine.api.dependencies.deps import get_db
+from auth_engine.auth_strategies.oauth.factory import get_platform_authengine_client_id
 from auth_engine.core.config import settings
 from auth_engine.core.redis import get_redis
+from auth_engine.core.security import security as crypto
 from auth_engine.core.templates import jinja_env
+from auth_engine.models.oidc_client import OIDCClientORM
 from auth_engine.models.user import UserORM
+from auth_engine.repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -47,6 +54,7 @@ AUTH_CODE_TTL = 600
 def _render_login(
     *,
     client_id: str,
+    client_name: str,
     redirect_uri: str,
     scope: str,
     state: str,
@@ -60,6 +68,7 @@ def _render_login(
     return tmpl.render(
         app_name=settings.APP_NAME,
         client_id=client_id,
+        client_name=client_name,
         redirect_uri=redirect_uri,
         scope=scope,
         scopes=scope.split(),
@@ -105,6 +114,7 @@ async def authorize(
     code_challenge_method: Annotated[str | None, Query(description="Must be S256")] = None,
     current_user: UserORM | None = Depends(get_current_user_optional),
     redis_conn: aioredis.Redis = Depends(get_redis),
+    db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse | RedirectResponse:
     """
     OIDC Authorization endpoint.
@@ -143,10 +153,23 @@ async def authorize(
         logger.info(f"[oidc/authorize] Silent SSO for user={current_user.id} client={client_id}")
         return _redirect_with_code(redirect_uri, code, state)
 
+    # ── Resolve Client Name ───────────────────────────────────────────────
+    client_name = settings.APP_NAME
+    platform_authengine_client_id = await get_platform_authengine_client_id(db)
+    if platform_authengine_client_id and client_id == platform_authengine_client_id:
+        client_name = "authengine.org"
+    else:
+        stmt = select(OIDCClientORM).where(OIDCClientORM.client_id == client_id)
+        result = await db.execute(stmt)
+        client = result.scalar_one_or_none()
+        if client and client.client_name:
+            client_name = client.client_name
+
     # ── Unauthenticated — show login page ─────────────────────────────────
     return HTMLResponse(
         content=_render_login(
             client_id=client_id,
+            client_name=client_name,
             redirect_uri=redirect_uri,
             scope=scope,
             state=state or "",
@@ -178,15 +201,12 @@ async def authorize_submit(
     On success: issues an authorization code and redirects to redirect_uri.
     On failure: re-renders the login page with an error message.
     """
-    from auth_engine.api.dependencies.deps import get_db
-    from auth_engine.core.security import security as crypto
-    from auth_engine.repositories.user_repo import UserRepository
-
     form = await request.form()
 
     email = str(form.get("email", ""))
     password = str(form.get("password", ""))
     client_id = str(form.get("client_id", ""))
+    client_name = str(form.get("client_name", settings.APP_NAME))
     redirect_uri = str(form.get("redirect_uri", ""))
     scope = str(form.get("scope", "openid"))
     state = str(form.get("state", ""))
@@ -198,6 +218,7 @@ async def authorize_submit(
         return HTMLResponse(
             content=_render_login(
                 client_id=client_id,
+                client_name=client_name,
                 redirect_uri=redirect_uri,
                 scope=scope,
                 state=state,

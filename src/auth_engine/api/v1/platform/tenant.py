@@ -9,12 +9,25 @@ from auth_engine.api.dependencies.deps import get_audit_service, get_db
 from auth_engine.api.dependencies.rbac import check_platform_permission
 from auth_engine.models import TenantAuthConfigORM, TenantORM, UserORM
 from auth_engine.repositories.user_repo import UserRepository
+from auth_engine.schemas.rbac import RoleResponse
 from auth_engine.schemas.tenant import TenantCreate, TenantResponse, TenantUpdate
 from auth_engine.schemas.tenant_auth_config import DEFAULT_ALLOWED_METHODS, DEFAULT_PASSWORD_POLICY
 from auth_engine.services.audit_service import AuditService
+from auth_engine.services.role_service import RoleService
 from auth_engine.services.tenant_service import TenantService
 
 router = APIRouter()
+
+
+async def _load_tenant_response(db: AsyncSession, tenant_id: uuid.UUID) -> TenantORM:
+    query = (
+        select(TenantORM)
+        .where(TenantORM.id == tenant_id)
+        .options(joinedload(TenantORM.owner), joinedload(TenantORM.creator))
+    )
+    result = await db.execute(query)
+    tenant = result.scalar_one()
+    return tenant
 
 
 @router.post("/tenants", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
@@ -31,15 +44,18 @@ async def create_tenant(
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo, audit_service=audit_service)
 
-    tenant = await tenant_service.create_tenant(
-        name=tenant_in.name,
-        owner_id=tenant_in.owner_id,
-        created_by=current_user.id,
-        description=tenant_in.description,
-        type=tenant_in.type.value if tenant_in.type else "CUSTOMER",
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
+    try:
+        tenant = await tenant_service.create_tenant(
+            name=tenant_in.name,
+            owner_id=tenant_in.owner_id,
+            created_by=current_user.id,
+            description=tenant_in.description,
+            type=tenant_in.type.value if tenant_in.type else "CUSTOMER",
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
     # Auto-seed TenantAuthConfig with defaults
     auth_config = TenantAuthConfigORM(
@@ -53,6 +69,7 @@ async def create_tenant(
     db.add(auth_config)
     await db.commit()
 
+    tenant = await _load_tenant_response(db, tenant.id)
     return TenantResponse.model_validate(tenant)
 
 
@@ -106,16 +123,38 @@ async def update_tenant(
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo, audit_service=audit_service)
 
-    tenant = await tenant_service.update_tenant(
-        tenant_id=tenant_id,
-        actor=current_user,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-        **tenant_in.model_dump(exclude_unset=True),
-    )
+    try:
+        tenant = await tenant_service.update_tenant(
+            tenant_id=tenant_id,
+            actor=current_user,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            **tenant_in.model_dump(exclude_unset=True),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    tenant = await _load_tenant_response(db, tenant.id)
     return TenantResponse.model_validate(tenant)
+
+
+@router.get("/tenants/{tenant_id}/roles", response_model=list[RoleResponse])
+async def list_tenant_roles_for_platform(
+    tenant_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserORM = Depends(check_platform_permission("platform.users.manage")),
+) -> list[RoleResponse]:
+    """List organization roles for a customer tenant (platform admin)."""
+    user_repo = UserRepository(db)
+    role_service = RoleService(user_repo)
+
+    tenant = await db.get(TenantORM, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    roles = await role_service.list_tenant_roles(tenant_id)
+    return [RoleResponse.model_validate(r) for r in roles]
 
 
 @router.delete("/tenants/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -132,11 +171,14 @@ async def delete_tenant(
     user_repo = UserRepository(db)
     tenant_service = TenantService(user_repo, audit_service=audit_service)
 
-    success = await tenant_service.delete_tenant(
-        tenant_id=tenant_id,
-        actor=current_user,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
+    try:
+        success = await tenant_service.delete_tenant(
+            tenant_id=tenant_id,
+            actor=current_user,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")

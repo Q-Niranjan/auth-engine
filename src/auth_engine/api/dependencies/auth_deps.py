@@ -61,7 +61,10 @@ async def get_current_user(
             joinedload(UserORM.roles)
             .joinedload(UserRoleORM.role)
             .joinedload(RoleORM.permissions)
-            .joinedload(RolePermissionORM.permission)
+            .joinedload(RolePermissionORM.permission),
+            joinedload(UserORM.roles)
+            .joinedload(UserRoleORM.role)
+            .joinedload(RoleORM.template_role),
         )
         .options(joinedload(UserORM.roles).joinedload(UserRoleORM.tenant))
     )

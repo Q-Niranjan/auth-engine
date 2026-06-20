@@ -8,7 +8,6 @@ PUT  /tenants/{tenant_id}/auth-config
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth_engine.api.dependencies.deps import get_db
@@ -19,22 +18,19 @@ from auth_engine.schemas.tenant_auth_config import (
     TenantAuthConfigResponse,
     TenantAuthConfigUpdate,
 )
+from auth_engine.services.tenant_auth_config_service import (
+    get_or_create_auth_config,
+    normalize_allowed_methods,
+)
 
 router = APIRouter()
 
 
-async def _get_or_404(db: AsyncSession, tenant_id: uuid.UUID) -> TenantAuthConfigORM:
-    """Return the config or raise 404."""
-    query = select(TenantAuthConfigORM).where(TenantAuthConfigORM.tenant_id == tenant_id)
-    result = await db.execute(query)
-    config = result.scalar_one_or_none()
-    if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Auth config not found for this tenant. "
-            "Config is auto-created when a tenant is created.",
-        )
-    return config
+def _to_response(config: TenantAuthConfigORM) -> TenantAuthConfigResponse:
+    data = TenantAuthConfigResponse.model_validate(config)
+    return data.model_copy(
+        update={"allowed_methods": normalize_allowed_methods(data.allowed_methods)}
+    )
 
 
 @router.get(
@@ -47,8 +43,8 @@ async def get_auth_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.view")),
 ) -> TenantAuthConfigResponse:
-    config = await _get_or_404(db, tenant_id)
-    return TenantAuthConfigResponse.model_validate(config)
+    config = await get_or_create_auth_config(db, tenant_id)
+    return _to_response(config)
 
 
 @router.put(
@@ -62,17 +58,18 @@ async def update_auth_config(
     db: AsyncSession = Depends(get_db),
     current_user: UserORM = Depends(require_permission("tenant.update")),
 ) -> TenantAuthConfigResponse:
-    config = await _get_or_404(db, tenant_id)
+    config = await get_or_create_auth_config(db, tenant_id)
 
     if body.allowed_methods is not None:
-        invalid = set(body.allowed_methods) - VALID_AUTH_METHODS
+        normalized = normalize_allowed_methods(body.allowed_methods)
+        invalid = set(normalized) - VALID_AUTH_METHODS
         if invalid:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid auth methods: {', '.join(invalid)}. "
                 f"Valid values: {', '.join(sorted(VALID_AUTH_METHODS))}",
             )
-        config.allowed_methods = body.allowed_methods
+        config.allowed_methods = normalized
 
     if body.mfa_required is not None:
         config.mfa_required = body.mfa_required
@@ -91,4 +88,4 @@ async def update_auth_config(
 
     await db.commit()
     await db.refresh(config)
-    return TenantAuthConfigResponse.model_validate(config)
+    return _to_response(config)

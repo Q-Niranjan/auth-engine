@@ -1,11 +1,14 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
+from auth_engine.api.ui_router import ui_router
 from auth_engine.api.v1.oidc.discovery import well_known_router
 from auth_engine.api.v1.router import api_router
 from auth_engine.core import mongodb
@@ -78,6 +81,11 @@ app.add_middleware(
 
 
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+app.include_router(ui_router)
+
+# Mount static files
+BASE_DIR = Path(__file__).resolve().parent.parent
+app.mount("/static", StaticFiles(directory=BASE_DIR / "assest"), name="static")
 
 # # OIDC spec requires discovery at /.well-known/ — mounted at the app root (no API prefix)
 app.include_router(well_known_router, prefix="/.well-known", tags=["oidc"])
