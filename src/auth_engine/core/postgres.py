@@ -4,13 +4,17 @@ from sqlalchemy.orm import DeclarativeBase
 
 from auth_engine.core.config import settings
 
+_connect_args: dict[str, str] = {}
+if settings.POSTGRES_SSL:
+    _connect_args["ssl"] = "require"
+
 engine = create_async_engine(
     settings.POSTGRES_URL,
     pool_size=settings.POSTGRES_POOL_SIZE,
     max_overflow=settings.POSTGRES_MAX_OVERFLOW,
     pool_pre_ping=True,  # detect stale connections (important for hosted DBs)
     pool_recycle=300,  # recycle connections every 5 min
-    connect_args={"ssl": "require"},  # Supabase requires SSL
+    connect_args=_connect_args,
     future=True,
     echo=settings.DEBUG,
 )

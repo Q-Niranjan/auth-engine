@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # PostgreSQL specific
     POSTGRES_POOL_SIZE: int = Field(..., ge=1)
     POSTGRES_MAX_OVERFLOW: int = Field(..., ge=0)
+    POSTGRES_SSL: bool = Field(
+        default=False,
+        description="Enable SSL for PostgreSQL (set true for hosted databases)",
+    )
 
     # MongoDB specific
     MONGODB_DB_NAME: str = Field(..., description="MongoDB database name")

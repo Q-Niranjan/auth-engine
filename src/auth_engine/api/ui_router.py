@@ -36,7 +36,7 @@ async def login_redirect(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/api/v1/auth/oauth/authengine/login", status_code=302)
 
 
-@ui_router.post("/register")
+@ui_router.post("/register", response_model=None)
 async def register_submit(
     request: Request,
     name: str = Form(...),
@@ -97,7 +97,7 @@ async def reset_password_page(request: Request, token: str) -> HTMLResponse:
     return HTMLResponse(content=tmpl.render(app_name=settings.APP_NAME, token=token))
 
 
-@ui_router.post("/reset-password")
+@ui_router.post("/reset-password", response_model=None)
 async def reset_password_submit(
     request: Request,
     token: str = Form(...),
