@@ -1,95 +1,64 @@
 # auth-engine
 
-Backend API for **AuthEngine** — FastAPI IAM, multi-tenancy, OIDC provider, and token introspection.
+Production-ready backend API for **AuthEngine** — multi-tenant IAM, RBAC, OIDC provider, social login, MFA, passkeys, and token introspection.
 
-**Documentation:** [auth-engine-docs](https://github.com/auth-engine/auth-engine-docs) · published at [docs.authengine.org](https://docs.authengine.org)
+Built with FastAPI and PostgreSQL. Migrations via Alembic; seeding is handled separately by [auth-engine-data](https://github.com/auth-engine/auth-engine-data).
 
-| Guide | Link |
-|-------|------|
-| Quick Start | [quick-start.md](https://docs.authengine.org/quick-start/) |
-| OAuth2 / OIDC | [oauth2-oidc-guides.md](https://docs.authengine.org/oauth2-oidc-guides/) |
-| API Reference | [api-reference.md](https://docs.authengine.org/api-reference/) |
-| Architecture | [architecture.md](https://docs.authengine.org/architecture/) |
-| Deployment | [deployment.md](https://docs.authengine.org/deployment/) |
-| Security | [security-overview.md](https://docs.authengine.org/security-overview/) |
+## Development
 
-## What this repository is
+### 1. Local
 
-FastAPI service that owns the REST API, database migrations (Alembic), and the OIDC provider. It does **not** seed RBAC, the super admin, or platform-tenant config on startup — run **[auth-engine-data](https://github.com/auth-engine/auth-engine-data)** after migrations. Docker Compose manifests live in **[auth-engine-infra](https://github.com/auth-engine/auth-engine-infra)**.
-
-Platform email, SMS, social OAuth, and password policy are stored in the **database** (platform tenant). Seed them once via `auth-engine-data` or configure them in the dashboard.
-
-## Local development
-
-Requires Python **3.12+** and [uv](https://docs.astral.sh/uv/). Postgres, MongoDB, and Redis must be running (or use Compose from `auth-engine-infra`).
+Requires Python **3.12+**, [uv](https://docs.astral.sh/uv/), and running Postgres, MongoDB, and Redis.
 
 ```bash
 cd auth-engine
 uv sync
 cp .env.example .env.local
 auth-engine migrate
-auth-engine run              # optional: --reload
+auth-engine run              # add --reload for hot reload
 ```
 
-After migrations, seed roles, super admin, and platform tenant config:
+Seed once (after migrate):
 
 ```bash
 cd ../auth-engine-data
 uv sync && cp .env.example .env.local
-# POSTGRES_URL + SECRET_KEY (same as auth-engine) + SUPERADMIN_*
 uv run auth-engine-data all
 ```
 
-Optional platform email/SMS/OAuth/password vars are documented in `auth-engine-data/.env.example`. Use `auth-engine-data platform-config` to re-run that step only.
+### 2. Compose
 
-### Lint & format
-
-Install dev tools once, then run checks before pushing:
-
-```bash
-uv sync --extra dev
-uv run ruff check src              # lint
-uv run ruff format src             # auto-fix formatting
-uv run ruff format --check src     # CI-style check (no file changes)
-uv run pre-commit install          # optional: run checks on every commit
-```
-
-If `ruff format --check` fails, it only reports which files need changes. Run `uv run ruff format src` to fix them, then commit again.
-
-## Production
-
-| Host | Role |
-|------|------|
-| [api.authengine.org](https://api.authengine.org) | API + Swagger |
-| [auth.authengine.org](https://auth.authengine.org) | OIDC / login UI |
-| [app.authengine.org](https://app.authengine.org) | Admin dashboard |
-| [docs.authengine.org](https://docs.authengine.org) | Documentation |
-
-## Docker
-
-Dockerfile only — compose files live in **[auth-engine-infra/compose](https://github.com/auth-engine/auth-engine-infra/tree/main/compose)**.
+Full stack (API + dashboard + databases) from **[auth-engine-infra/compose](https://github.com/auth-engine/auth-engine-infra/tree/main/compose)**:
 
 ```bash
 cd auth-engine-infra/compose
-docker compose up -d --build
+cp env.local.example .env
+docker compose up -d
+docker exec authengine-api auth-engine migrate
 ```
 
-After migrations, seed with **[auth-engine-data](https://github.com/auth-engine/auth-engine-data)** (`auth-engine-data all`). The API does not seed on startup.
+Then seed from **auth-engine-data** (see [auth-engine-data README](https://github.com/auth-engine/auth-engine-data)).
 
-Pre-built production images: [Deployment guide](https://docs.authengine.org/deployment/).
+## Production
 
-**CI/CD:** merge to `main` runs lint and pushes `DOCKERHUB_USERNAME/authengine:latest`. Redeploy the `api` workload in Rancher (or `kubectl rollout restart deployment/api -n authengine`), then run `auth-engine migrate` in the pod.
+| Path | Guide |
+|------|-------|
+| Local VM + Cloudflare Tunnel | [deploy-local-vm.sh](https://github.com/auth-engine/auth-engine-infra/blob/main/scripts/deploy-local-vm.sh) |
+| AWS EC2 or any cloud VM | [deploy-aws.sh](https://github.com/auth-engine/auth-engine-infra/blob/main/scripts/deploy-aws.sh) |
 
-## Contributing
+Docker image: `qniranjan01/authengine:latest`
 
-See [Contributing](https://docs.authengine.org/contributing/) or [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues per [Security Policy](https://docs.authengine.org/security-policy/) — not via public issues.
+## Documentation
+
+| Guide | Link |
+|-------|------|
+| Quick Start | [docs.authengine.org/quick-start](https://docs.authengine.org/quick-start/) |
+| Deployment | [docs.authengine.org/deployment](https://docs.authengine.org/deployment/) |
+| API Reference | [docs.authengine.org/api-reference](https://docs.authengine.org/api-reference/) |
+| OAuth2 / OIDC | [docs.authengine.org/oauth2-oidc-guides](https://docs.authengine.org/oauth2-oidc-guides/) |
+| Architecture | [docs.authengine.org/architecture](https://docs.authengine.org/architecture/) |
+| Security | [docs.authengine.org/security-overview](https://docs.authengine.org/security-overview/) |
 
 ## Related repositories
 
-| Repository | Role |
-|------------|------|
-| [auth-engine-dashboard](https://github.com/auth-engine/auth-engine-dashboard) | Next.js admin dashboard |
-| [auth-engine-data](https://github.com/auth-engine/auth-engine-data) | Seeding (RBAC, super admin, platform config) |
-| [auth-engine-docs](https://github.com/auth-engine/auth-engine-docs) | Platform documentation |
-| [auth-engine-infra](https://github.com/auth-engine/auth-engine-infra) | Terraform & Docker Compose |
-| [.github](https://github.com/auth-engine/.github) | Org profile, contributing & security policy |
+[auth-engine-dashboard](https://github.com/auth-engine/auth-engine-dashboard) · [auth-engine-data](https://github.com/auth-engine/auth-engine-data) · [auth-engine-infra](https://github.com/auth-engine/auth-engine-infra) · [auth-engine-docs](https://github.com/auth-engine/auth-engine-docs)
