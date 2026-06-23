@@ -104,7 +104,7 @@ jobs:
           echo "**Image:** \`${{ steps.image.outputs.full }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Digest:** \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Pull Command" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ steps.image.outputs.full }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "### Next step — redeploy in Rancher" >> $GITHUB_STEP_SUMMARY
+          echo "Merge to \`main\` builds and pushes this image. Redeploy the **api** workload in Rancher (or \`kubectl rollout restart deployment/api -n authengine\`) to pick up \`:latest\`." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "After a new API release, run migrations: \`auth-engine migrate\` in the api pod (see [deployment guide](https://docs.authengine.org/deployment/))." >> $GITHUB_STEP_SUMMARY

@@ -76,7 +76,9 @@ docker compose up -d --build
 
 After migrations, seed with **[auth-engine-data](https://github.com/auth-engine/auth-engine-data)** (`auth-engine-data all`). The API does not seed on startup.
 
-Pre-built production images and CI/CD: [Deployment guide](https://docs.authengine.org/deployment/).
+Pre-built production images: [Deployment guide](https://docs.authengine.org/deployment/).
+
+**CI/CD:** merge to `main` runs lint and pushes `DOCKERHUB_USERNAME/authengine:latest`. Redeploy the `api` workload in Rancher (or `kubectl rollout restart deployment/api -n authengine`), then run `auth-engine migrate` in the pod.
 
 ## Contributing
 
