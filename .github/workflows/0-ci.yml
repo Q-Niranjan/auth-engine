@@ -1,4 +1,4 @@
-# Pipeline: merge to main → 0-ci → 1-build-push → 4-deploy (EC2)
+# Pipeline: merge to main → 0-ci → 1-build-push (Docker Hub). Redeploy in Rancher manually.
 name: auth-engine · Lint and Typecheck
 
 on:
